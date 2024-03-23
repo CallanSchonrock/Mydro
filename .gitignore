@@ -6,9 +6,9 @@
 ###################
 *.com
 *.class
-*.dll
-*.exe
-*.pdb
+# *.dll
+# *.exe
+# *.pdb
 *.dll.config
 *.cache
 *.suo
@@ -47,7 +47,7 @@ TestResults/
 *.jar
 *.rar
 *.tar
-*.zip
+# *.zip
 ######################
 # Logs and databases #
 ######################
