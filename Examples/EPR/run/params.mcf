@@ -1,0 +1,25 @@
+! As of 19/07/2023 No S-Q files are supported, the vec file still gets read, but any storages are ignored.
+
+! Mandatory Args
+
+run=single
+cat=..\Model\catch\Outputs\_SubcatFile.csv
+vec=..\Model\catch\Outputs\_RoutingFile.vec
+IL=35
+CL=1.0
+
+! cal file must be in format Time (h), id, id, id...
+
+! cal=..\Recorded\targetFlows.csv
+dbase=bc_dbase_single.csv
+
+! Optional Args
+
+X=0.0
+N=1.0
+a=1.0
+b=10
+m=0.6
+
+! fits=bestFits.csv
+output=Output.csv
