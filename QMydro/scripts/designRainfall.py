@@ -4,7 +4,17 @@ import csv
 import zipfile
 import os
 from math import log10
+from qgis.core import *
+import time
 import subprocess
+from bs4 import BeautifulSoup
+try:
+    from bs4 import BeautifulSoup
+except:
+    # Use subprocess to call pip for installation using OSGEO4W environment
+    subprocess.run(["python", "-m", "pip", "install", "bs4"], check=True, shell=False, executable=os.path.join(os.path.dirname(os.path.dirname(QgsApplication.prefixPath())),"OSGeo4W.bat"), creationflags=subprocess.CREATE_NO_WINDOW)
+    # Just incase sleep to refresh environment
+    time.sleep(0.25)
 from bs4 import BeautifulSoup
 # Check to see if rasterio python module is installed on QGIS Version
 
@@ -339,4 +349,4 @@ def getRainfallData(lon, lat, useARF, area, dirname):
     ifds = get_ifds(lon, lat, durs, dirname, aeps)
     temporalPatterns = get_temporalPatterns(results['PointTP']['url'],results['ArealTP']['url'], area, ifds, arfs, aeps, formattedAeps, durs, dirname) 
 
-# getRainfallData(153.026450,-30.387800,True,113,"test")
+getRainfallData(152.93223,-27.79944,True,55.56753,r"R:\Jobs\24020147_Logan_Flood_Study_2024_Flagstone_Creek\Analysis\URBS\design\ifd\Rainfall")

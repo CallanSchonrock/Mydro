@@ -128,7 +128,7 @@ namespace Run_Handler
             return extractedData;
         }
         static void Main(string[] args)
-        {
+        { 
             fileLocations FileLocations = new fileLocations(args[0]);
             GlobalVariables.CL = FileLocations.CL;
             GlobalVariables.X = FileLocations.X;

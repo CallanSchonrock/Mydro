@@ -106,7 +106,7 @@ namespace mainAlg
             int[,] accumulation = new int[numRows, numCols];
             int[,] subcatchments = new int[numRows, numCols];
             int[,] channel = new int[numRows, numCols];
-
+            Console.WriteLine($"Target Subcatchment Cells: {targetCatchSize}");
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
             // Iterate over each cell in the elevation array
@@ -227,12 +227,6 @@ namespace mainAlg
             stopwatch.Stop();
             Console.WriteLine($"Accumulation Calculated. Time: {stopwatch.ElapsedMilliseconds}");
 
-            /*
-            Unhandled exception. System.Collections.Generic.KeyNotFoundException: The given key '31' was not present in the dictionary.
-            at System.Collections.Generic.Dictionary`2.get_Item(TKey key)
-            at mainAlg.mainAlgorithm.processingAlg(Single[,] elev, Single noData_val, List`1 outletCells, Single dx, Single dy, Single targetCatchSize) in E:\Python\QGIS\PyCatch\catchment_delineator\scripts\CS\delineateCatch\mainAlg.cs:line 313
-            at Program.Main(String[] args) in E:\Python\QGIS\PyCatch\catchment_delineator\scripts\CS\delineateCatch\Program.cs:line 82
-            */
 
             List<int> catchAccs = new List<int>();
             List<int> catchMaxAccs = new List<int>();
@@ -275,7 +269,7 @@ namespace mainAlg
 
                 float stepSize = (float) Math.Min((minMaxElev - xsMin) / 10, 1.0);
                 double slope = 0; double yIntercept = 0;
-                if (minMaxElev - xsMin > 0.5 && xsX.Count >= 5)
+                if (minMaxElev - xsMin > 0.5 && xsX.Count >= 5 && dx + dy <= 20)
                 {
                     List<double> conveyanceAreaLN = new List<double>();
                     List<double> hydraulicR = new List<double>();
@@ -346,6 +340,7 @@ namespace mainAlg
             {
                 (int x, int y) = subCells.Dequeue();
                 int thisSubCat = subcatchments[x, y];
+                int thisAcc = accumulation[x, y];
                 for (int i = x - 1; i <= x + 1; i++)
                 {
                     if (i < 0 || i > numRows - 1) continue;
@@ -363,8 +358,6 @@ namespace mainAlg
                             {
                                 continue;
                             }
-                            subCells.Enqueue((i, j), accumulation[i, j]);
-
                             if (nextSubCat != default) // VECFILE ROUTING
                             {
                                 if (!subcatchmentsInfo[thisSubCat].upstreamCatchments.Contains(subcatchmentsInfo[nextSubCat]) && !subcatchmentsInfo[nextSubCat].upstreamCatchments.Contains(subcatchmentsInfo[thisSubCat]) && catchMaxAccs[thisSubCat - 1] > catchMaxAccs[nextSubCat - 1])
@@ -374,13 +367,29 @@ namespace mainAlg
                                 }
                                 continue;
                             }
-                            subcatchments[i, j] = thisSubCat;
-                            catchAccs[thisSubCat - 1] += 1;
+                            subCells.Enqueue((i, j), accumulation[i, j]);
+                            if (targetCatchSize > 0 && catchAccs[thisSubCat - 1] > targetCatchSize * 0.75 && accumulation[i, j] > targetCatchSize * 0.5 && thisAcc - accumulation[i,j] > targetCatchSize * 0.25)
+                            {
+                                
+                                subcatchmentsInfo.Add(catchmentID, new Subcatchment(catchmentID));
+                                catchAccs.Add(1);
+                                catchMaxAccs.Add(accumulation[i, j]);
+                                subcatchments[i, j] = catchmentID;
+                                catchHydraulicParameters.Add((0, 0));
+                                outletCells.Add(new List<(int, int)> { (i, j) });
+                                subcatchmentsInfo[thisSubCat].upstreamCatchments.Add(subcatchmentsInfo[catchmentID]);
+                                subcatchmentsInfo[catchmentID].dsCatchment = thisSubCat;
+                                catchmentID++;
+                            }
+                            else
+                            {
+                                subcatchments[i, j] = thisSubCat;
+                                catchAccs[thisSubCat - 1] += 1;
+                            }
                         }
                     }
                 }
             }
-            
             
             stopwatch.Stop();
             Console.WriteLine($"Catchments Calculated. Time: {stopwatch.ElapsedMilliseconds}");
@@ -548,15 +557,17 @@ namespace mainAlg
                 channelCatchSlopes[thisSubcat - 1] = ((accElev / accDistance) - minElev) / (accDistance / 2);
                 channelCatchLengths[thisSubcat - 1] = accDistance;
             }
+            Console.WriteLine("Stream Paths Written");
             List<float> timeOfConcentrations = new List<float>();
             List<float> upstreamAreas = new List<float>();
             for (int i = 0; i < channelLengths.Count; i++)
             {
+                
                 upstreamAreas.Add((float)Math.Round(catchMaxAccs[i] * dx * dy / 1000000f, 5));
                 timeOfConcentrations.Add((float)Math.Round(58 * (channelCatchLengths[i] / 1000f) / ((float)Math.Pow(catchMaxAccs[i] * dx * dy / 1000000f, 0.1f) * (float)Math.Pow(channelCatchSlopes[i] * 1000f, 0.2f)), 5));
             }
             stopwatch.Stop();
-            Console.WriteLine($"Main Stream Paths Written. Time: {stopwatch.ElapsedMilliseconds}");
+            Console.WriteLine($"Time of concentration. Time: {stopwatch.ElapsedMilliseconds}");
 
             // VEC FILE WRITING
             stopwatch.Start();

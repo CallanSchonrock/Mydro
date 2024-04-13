@@ -60,17 +60,6 @@ except:
     time.sleep(0.25)
 
 from .scripts import designRainfall
-# Check to see if rasterio python module is installed on QGIS Version
-try:
-    import rasterio
-    from rasterio.crs import CRS
-except:
-    # Use subprocess to call pip for installation using OSGEO4W environment
-    subprocess.run(["python", "-m", "pip", "install", "rasterio"], check=True, shell=False, executable=os.path.join(os.path.dirname(os.path.dirname(QgsApplication.prefixPath())),"OSGeo4W.bat"), creationflags=subprocess.CREATE_NO_WINDOW)
-    # Just incase sleep to refresh environment
-    time.sleep(0.25)
-    import rasterio
-    from rasterio.crs import CRS
 
 
 def classFactory(iface):
@@ -313,37 +302,7 @@ class QMydro():
         self.autoBreakup = False
         self.targetSubcatSize = 0
     
-    def selectRasterLayer(self):
-        """ With the elevation raster, gather information of cellArea and Cellsizes"""
-        self.elevationRaster = self.dockwidget.inputElevationFile.currentLayer()
-        if self.elevationRaster == None:
-            return
-        provider = self.elevationRaster.dataProvider()
-        extent = self.elevationRaster.extent()
-        width = provider.xSize()
-        height = provider.ySize()
-        
-        self.cellsize_x = extent.width() / width
-        self.cellsize_y = extent.height() / height
-        
-        # Get the units of the layer's CRS
-        layer_units = self.elevationRaster.crs().mapUnits()
-
-        # Convert cell size to CRS units
-        self.cellsize_x_in_crs_units = self.cellsize_x * QgsUnitTypes.fromUnitToUnitFactor(layer_units, QgsUnitTypes.DistanceMeters)
-        self.cellsize_y_in_crs_units = self.cellsize_y * QgsUnitTypes.fromUnitToUnitFactor(layer_units, QgsUnitTypes.DistanceMeters)
-
-        # Calculate the cell area in square meters
-        self.cellArea = self.cellsize_x_in_crs_units * self.cellsize_y_in_crs_units
-    
-    def selectCarveLayer(self):
-        self.carveLayer = self.dockwidget.inputCarveFile.currentLayer()
-        
-    def selectOutletsLayer(self):
-        self.outletsLayer = self.dockwidget.inputOutletsFile.currentLayer()
-    
     def defineOutputPath(self, path):
-        """On input directory change update output directory"""
         self.outputPath = path
     
     def toggleBreakup(self, state):
@@ -363,7 +322,7 @@ class QMydro():
         if state == 2:
             self.dockwidget.gisSubdir.setEnabled(True)
             
-            self.outputPath = os.path.join(self.dockwidget.outputDir.filePath(), self.dockwidget.gisSubDir.text())
+            self.outputPath = os.path.join(self.dockwidget.outputDir.filePath(), self.dockwidget.gisSubdir.text())
             if os.path.exists(self.dockwidget.outputDir.filePath()):
                 if not os.path.exists(self.outputPath):
                     os.makedirs(self.outputPath)
@@ -485,8 +444,9 @@ class QMydro():
         designRainfall.getRainfallData(lon, lat, useArf, area, outputDir)
     
     def runMydro(self):
+    
         # Define the command
-        command = fr'E:\Python\QGIS\PyCatch\Mydro\Mydro\Mydro.exe {os.path.join(os.path.dirname(self.dockwidget.controlFile.filePath()), "Temp_MydroSimManager.mcf")}'
+        command = fr'{self.dockwidget.mydroExe.filePath()} {os.path.join(os.path.dirname(self.dockwidget.controlFile.filePath()), "Temp_MydroSimManager.mcf")}'
         startupinfo = subprocess.STARTUPINFO()
         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         startupinfo.wShowWindow = subprocess.SW_HIDE
@@ -625,101 +585,6 @@ class QMydro():
             for col in compOutputCols:
                 self.dockwidget.compTimeCol.addItemWithCheckState(col, False)
                 self.dockwidget.compValCol.addItemWithCheckState(col, False)
-    
-    def bresenham_line(self, x0, y0, x1, y1):
-        """ Algorithm for determining bresenham line """
-        dx = abs(x1 - x0)
-        dy = abs(y1 - y0)
-        sx = 1 if x0 < x1 else -1
-        sy = 1 if y0 < y1 else -1
-        err = dx - dy
-        cells = []
-        while True:
-            cells.append((x0, y0))
-            if x0 == x1 and y0 == y1:
-                break
-            e2 = 2 * err
-            if e2 > -dy:
-                err -= dy
-                x0 += sx
-            if e2 < dx:
-                err += dx
-                y0 += sy
-        return cells
-    
-    def extractRastData(self):
-        self.provider = self.elevationRaster.dataProvider()
-        self.noData_value = self.provider.sourceNoDataValue(1)
-        self.extent = self.elevationRaster.extent()
-        self.width = self.provider.xSize()
-        self.height = self.provider.ySize()
-        self.cellsize_x = self.extent.width() / self.width
-        self.cellsize_y = self.extent.height() / self.height
-        # Get the units of the layer's CRS
-        layer_units = self.elevationRaster.crs().mapUnits()
-
-        # Convert cell size to CRS units
-        self.cellsize_x_in_crs_units = self.cellsize_x * QgsUnitTypes.fromUnitToUnitFactor(layer_units, QgsUnitTypes.DistanceMeters)
-        self.cellsize_y_in_crs_units = self.cellsize_y * QgsUnitTypes.fromUnitToUnitFactor(layer_units, QgsUnitTypes.DistanceMeters)
-        
-        with rasterio.open(self.elevationRaster.dataProvider().dataSourceUri()) as src:
-            self.transform = src.transform
-        block = self.provider.block(1, self.extent, self.width, self.height)
-        self.rastData = np.array(block.data()).astype('uint8')
-        byteData = int(len(self.rastData) / (self.height * self.width))
-        self.rastData = np.reshape(self.rastData, (self.height, self.width, byteData))
-        if byteData == 8:
-            self.rastData = np.apply_along_axis(lambda x: np.frombuffer(x, dtype=np.float64)[0], axis=2, arr=self.rastData)
-        if byteData == 4:
-            self.rastData = np.apply_along_axis(lambda x: struct.unpack('f', x)[0], axis=2, arr=self.rastData)
-        self.rastData = self.rastData.astype(np.float32)
-
-    def carveRaster(self):
-        for feature in self.carveLayer.getFeatures():
-            geom = feature.geometry()
-            cells = []
-            try:
-                lines = [geom.asPolyline()]  # Place the single LineString in a list for uniform handling
-            except:
-                lines = geom.asMultiPolyline()  # Extract multiple LineStrings from MultiLineString
-            start_point = [QgsPoint(pt[0].x(), pt[0].y()) for pt in lines][0]
-            start_x, start_y = rasterio.transform.rowcol(self.transform, start_point.x(), start_point.y())
-            startElev = self.rastData[start_x, start_y]
-            end_point = [QgsPoint(pt[-1].x(), pt[-1].y()) for pt in lines][-1]
-            end_x, end_y = rasterio.transform.rowcol(self.transform, end_point.x(), end_point.y())
-            endElev = self.rastData[end_x, end_y]
-            for line in lines:
-                line = [QgsPoint(pt.x(), pt.y()) for pt in line]
-                for i in range(len(line)-1):
-                    start_point, end_point = line[i], line[i+1]
-                    x0, y0 = rasterio.transform.rowcol(self.transform, start_point.x(), start_point.y())
-                    x1, y1 = rasterio.transform.rowcol(self.transform, end_point.x(), end_point.y())
-                    cells.extend(self.bresenham_line(x0, y0, x1, y1))
-            burn_value = np.linspace(startElev, endElev, len(cells))
-            for j, (col, row) in enumerate(cells):
-                self.rastData[col, row] = burn_value[j]
-
-        
-    def getOutletPixels(self):
-        self.outletCells = []
-        for feature in self.outletsLayer.getFeatures():
-            geom = feature.geometry()
-            try:
-                lines = [geom.asPolyline()]  # Place the single LineString in a list for uniform handling
-            except:
-                lines = geom.asMultiPolyline()  # Extract multiple LineStrings from MultiLineString
-            self.outletCells.append([])
-            start_point = [QgsPoint(pt[0].x(), pt[0].y()) for pt in lines][0]
-            start_x, start_y = rasterio.transform.rowcol(self.transform, start_point.x(), start_point.y())
-            end_point = [QgsPoint(pt[-1].x(), pt[-1].y()) for pt in lines][-1]
-            end_x, end_y = rasterio.transform.rowcol(self.transform, end_point.x(), end_point.y())
-            for line in lines:
-                line = [QgsPoint(pt.x(), pt.y()) for pt in line]
-                for i in range(len(line)-1):
-                    start_point, end_point = line[i], line[i+1]
-                    x0, y0 = rasterio.transform.rowcol(self.transform, start_point.x(), start_point.y())
-                    x1, y1 = rasterio.transform.rowcol(self.transform, end_point.x(), end_point.y())
-                    self.outletCells[-1].extend(self.bresenham_line(x0, y0, x1, y1))
             
     def transferData(self):
         try:
@@ -742,42 +607,38 @@ class QMydro():
             time.sleep(0.1)
             sock.bind(('localhost', openPort))
             sock.listen(1)
-            subprocess_proc = subprocess.Popen(os.path.join(self.plugin_dir, "scripts//CS//delineateCatch.exe"), cwd=os.path.join(self.plugin_dir, "scripts//CS"))
+            subprocess_proc = subprocess.Popen(os.path.join(self.plugin_dir, "scripts//CS//delineateCatch.exe"), cwd=os.path.join(self.plugin_dir, "scripts//CS"))  # Use text mode for easier handling of output
             conn, addr = sock.accept() # Wait for a connection from the C# application
             
-            shape = self.rastData.shape # Send the shape of the array as a 2-tuple of integers
-            conn.send(struct.pack('ii', shape[0], shape[1]))
+            # Send Raster File Path
+            file_path = self.elevationRaster.dataProvider().dataSourceUri()
+            conn.send(struct.pack('i',len(file_path.encode(encoding="ascii"))))
+            conn.send(file_path.encode(encoding="ascii"))
+            # Send Carve File Path
+            if self.carveLayer != None:
+                file_path = self.carveLayer.dataProvider().dataSourceUri()
+            else:
+                file_path = ""
+            conn.send(struct.pack('i',len(file_path.encode(encoding="ascii"))))
+            conn.send(file_path.encode(encoding="ascii"))
+            # Send Outlets File Path
+            file_path = self.outletsLayer.dataProvider().dataSourceUri()
+            conn.send(struct.pack('i',len(file_path.encode(encoding="ascii"))))
+            conn.send(file_path.encode(encoding="ascii"))
             
-            conn.send(struct.pack('f',self.noData_value))
-            conn.send(struct.pack('f',self.cellsize_x_in_crs_units))
-            conn.send(struct.pack('f',self.cellsize_y_in_crs_units))
+            conn.send(struct.pack('i',len(self.outputPath.encode(encoding="ascii"))))
+            conn.send(self.outputPath.encode(encoding="ascii"))
             
             if self.autoBreakup: # If auto breakup is toggled
                 conn.send(struct.pack('f',self.targetSubcatSize))
             else:
                 conn.send(struct.pack('f',0)) # C# script handles 0 as autobreakup off
             
-            conn.send(struct.pack("i", len(self.outletCells))) # Send the number of lists
-            for inner_list in self.outletCells:
-                conn.send(struct.pack("i", len(inner_list))) # Send the number of tuples in the inner list
-                for cell in inner_list:
-                    conn.send(struct.pack("ii", cell[0], cell[1])) # Send each tuple
-                    
-            conn.send(self.rastData.astype('float32').tobytes()) # Convert the outlet cells data to a byte stream and send it
-            shapeBytes = conn.recv(8) # Receive the shape of the array as a 2-tuple of integers
-            rows, cols = struct.unpack('ii', shapeBytes)
-    
-            catchDataBytes = conn.recv(rows * cols * 4) # Receive the array data as a byte stream
-            self.catchData = np.frombuffer(catchDataBytes, dtype=np.dtype('i4')) # Convert the byte stream to a 2D array of integers
-            self.catchData = self.catchData.reshape((rows, cols))
-            
-            streamsDataBytes = conn.recv(rows * cols * 4) # Receive the array data as a byte stream
-            self.streamsData = np.frombuffer(streamsDataBytes, dtype=np.dtype('i4')) # Convert the byte stream to a 2D array of integers
-            self.streamsData = self.streamsData.reshape((rows, cols))
-            
-            accDataBytes = conn.recv(rows * cols * 4) # Receive the array data as a byte stream
-            self.accData = np.frombuffer(accDataBytes, dtype=np.dtype('i4')) # Convert the byte stream to a 2D array of integers
-            self.accData = self.accData.reshape((rows, cols))
+            # conn.send(struct.pack("i", len(self.outletCells))) # Send the number of lists
+            # for inner_list in self.outletCells:
+                # conn.send(struct.pack("i", len(inner_list))) # Send the number of tuples in the inner list
+                # for cell in inner_list:
+                    # conn.send(struct.pack("ii", cell[0], cell[1])) # Send each tuple
             
             subCatCountBytes = conn.recv(4)
             subCount = struct.unpack('<I', subCatCountBytes)[0]
@@ -793,6 +654,9 @@ class QMydro():
             sock.close()
             
         except Exception as e:
+            # stdout, stderr = subprocess_proc.communicate()
+            # print(stdout)
+            # print(stderr)
             if 'subprocess_proc' in locals() and subprocess_proc.poll() is None:
                 subprocess_proc.terminate()
             if 'conn' in locals():
@@ -803,12 +667,12 @@ class QMydro():
         
         
         
-    def write_rast_from_numpy(self, path, numpyData, nameOfData, addToProject):
+    def write_rast_from_numpy(self, path, nameOfData, addToProject):
         # addRasterToInstance = True
         # if os.path.isfile(path):
         #     addRasterToInstance = False
-        with rasterio.open(path, 'w+', driver='GTiff', dtype='float32', count=1, compress='lzw', height=self.height, width=self.width, transform=self.transform, crs=CRS.from_string(self.elevationRaster.crs().authid()), nodata=0) as dst:
-            dst.write(numpyData, 1)
+        # with rasterio.open(path, 'w+', driver='GTiff', dtype='float32', count=1, compress='lzw', height=self.height, width=self.width, transform=self.transform, crs=CRS.from_string(self.elevationRaster.crs().authid()), nodata=0) as dst:
+            # dst.write(numpyData, 1)
 
         if addToProject:
             if len(nameOfData) > 0:
@@ -832,7 +696,7 @@ class QMydro():
             'EIGHT_CONNECTEDNESS': True,
             'EXTRA': '',
             'FIELD': 'ID',
-            'INPUT': os.path.join(self.outputPath, "temp.tif"),
+            'INPUT': os.path.join(self.outputPath, "QMydro_SubCats.tif"),
             'OUTPUT': path
         }
         processing.run('gdal:polygonize', alg_params)
@@ -855,7 +719,10 @@ class QMydro():
                 feature["Area"] = round(feature.geometry().area() * conversionFac,5)
                 # Set the default value for the new column
                 feature["US_Area"] = self.subcatUSAreas[int(feature["ID"]) - 1]
-                feature["Length"] = round(self.lengths[str(int(feature["ID"]))],5)
+                try:
+                    feature["Length"] = round(self.lengths[str(int(feature["ID"]))],5)
+                except:
+                    feature["Length"] = 0
                 feature["Tc"] = self.subcatTc[int(feature["ID"]) - 1]
                 self.catchLayer.updateFeature(feature)
                 
@@ -867,7 +734,7 @@ class QMydro():
     def convertToLines(self, path, nameOfData):
         """"Convert Streams raster data to shapefile using Grass Tools (GDAL might have a faster alternative)"""
         alg_params = {
-                      'input': os.path.join(self.outputPath, "streams.tif"),
+                      'input': os.path.join(self.outputPath, "QMydro_Streams.tif"),
                       'type':0,
                       'column':'ID',
                       '-s':False,
@@ -939,84 +806,86 @@ class QMydro():
         # Write the line layer to the specified file
         QgsVectorFileWriter.writeAsVectorFormatV3(
             line_layer,
-            os.path.join(self.outputPath, "NodalLinks.shp"),
+            os.path.join(self.outputPath, "QMydro_NodalLinks.shp"),
             QgsProject.instance().transformContext(),
             options
         )
         
         # Load the saved line layer back into QGIS (optional)
-        saved_line_layer = QgsVectorLayer(os.path.join(self.outputPath, "NodalLinks.shp"), nameOfData, "ogr")
+        saved_line_layer = QgsVectorLayer(os.path.join(self.outputPath, "QMydro_NodalLinks.shp"), nameOfData, "ogr")
         saved_line_layer.loadNamedStyle(os.path.join(self.plugin_dir, "nodalStyle.qml"))
         QgsProject.instance().addMapLayer(saved_line_layer)
     
     def processAlgs(self):
         """Main delineation method"""
-        
+        if self.dockwidget.toggleGisSubdir.isChecked():
+            self.outputPath = os.path.join(self.dockwidget.outputDir.filePath(), self.dockwidget.gisSubdir.text())
+            if os.path.exists(self.dockwidget.outputDir.filePath()):
+                if not os.path.exists(self.outputPath):
+                    os.makedirs(self.outputPath)
+        else:
+            self.outputPath = self.dockwidget.outputDir.filePath()
         # Reset existing instance properties
         self.catchData = None
         self.catchLayer = None
         self.layer = None
-        
-        # Define input data
-        self.selectCarveLayer()
-        self.selectOutletsLayer()
-        self.selectRasterLayer()
-        
+        self.carveLayer = self.dockwidget.inputCarveFile.currentLayer()
+        self.outletsLayer = self.dockwidget.inputOutletsFile.currentLayer()
+        self.elevationRaster = self.dockwidget.inputElevationFile.currentLayer()
+
         # Remove existing files in output directory
         filesToRemove = []
         for files in os.listdir(self.outputPath):
-            if files[:8] == "streams.":
+            if files[:8] == "QMydro_Streams.":
                 filesToRemove.extend([files])
-            elif files[:14] == "SubCatchments.":
+            elif files[:14] == "QMydro_SubCats.":
                 filesToRemove.extend([files])
-            elif files[:11] == "NodalLinks.":
+            elif files[:11] == "QMydro_NodalLinks.":
                 filesToRemove.extend([files])
         
         for files in filesToRemove:
             os.remove(os.path.join(self.outputPath, files))
 
-        if os.path.exists(os.path.join(self.outputPath, "acc.tif")):
-            os.remove(os.path.join(self.outputPath, "acc.tif"))
+        if os.path.exists(os.path.join(self.outputPath, "QMydro_Accumulation.tif")):
+            os.remove(os.path.join(self.outputPath, "QMydro_Accumulation.tif"))
         
-        if os.path.exists(os.path.join(self.outputPath, "temp.tif")):
-            os.remove(os.path.join(self.outputPath, "temp.tif"))
+        if os.path.exists(os.path.join(self.outputPath, "QMydro_SubCats.tif")):
+            os.remove(os.path.join(self.outputPath, "QMydro_SubCats.tif"))
         
-        if os.path.exists(os.path.join(self.outputPath, "temp.tif.aux.xml")):
-            os.remove(os.path.join(self.outputPath, "temp.tif.aux.xml"))
+        if os.path.exists(os.path.join(self.outputPath, "QMydro_SubCats.tif.aux.xml")):
+            os.remove(os.path.join(self.outputPath, "QMydro_SubCats.tif.aux.xml"))
             
-        time.sleep(0.1)
-        self.extractRastData() # Convert raster data to numpy 2D data
-        if type(self.carveLayer) == QgsVectorLayer: # Optional Arg
-            self.carveRaster()
-        self.getOutletPixels() # Get outlet pixels to send to C#
+        # time.sleep(0.1)
+        # self.extractRastData() # Convert raster data to numpy 2D data
+        # if type(self.carveLayer) == QgsVectorLayer: # Optional Arg
+            # self.carveRaster()
+        # self.getOutletPixels() # Get outlet pixels to send to C#
         time.sleep(0.1) # Wait before large file transfer
         self.transferData() # Transfer and process externally
-        del self.rastData
-        self.rastData = None # Force garbage collection
         shutil.copy(os.path.join(self.plugin_dir, "scripts//CS//TempVecFile.vec"), os.path.join(self.outputPath, "_RoutingFile.vec"))
         shutil.copy(os.path.join(self.plugin_dir, "scripts//CS//TempSubCats.csv"), os.path.join(self.outputPath, "_SubcatFile.csv"))
         
         
         # Output Files
-        self.write_rast_from_numpy(os.path.join(self.outputPath, "temp.tif"), self.catchData, "", False)
-        self.write_rast_from_numpy(os.path.join(self.outputPath, "streams.tif"), self.streamsData, "QMydro_Streams", False)
-        self.write_rast_from_numpy(os.path.join(self.outputPath, "acc.tif"), self.accData, "QMydro_Accumulation", True)
+        self.write_rast_from_numpy(os.path.join(self.outputPath, "QMydro_SubCats.tif"), "", False)
+        self.write_rast_from_numpy(os.path.join(self.outputPath, "QMydro_Streams.tif"), "QMydro_Streams", False)
+        self.write_rast_from_numpy(os.path.join(self.outputPath, "QMydro_Accumulation.tif"), "QMydro_Accumulation", True)
         
         # Python Processing
         self.layer = None
-        self.convertToLines(os.path.join(self.outputPath, "streams.shp"), "QMydro_Streams")
-        self.convertToPolygon(os.path.join(self.outputPath, "SubCatchments.shp"), "QMydro_Subcatchments")
+        self.convertToLines(os.path.join(self.outputPath, "QMydro_Streams.shp"), "QMydro_Streams")
+        self.convertToPolygon(os.path.join(self.outputPath, "QMydro_SubCats.shp"), "QMydro_SubCats")
         
         self.writeNodalLinks("QMydro_NodalLinks")
 
         if len(self.dockwidget.rainfallOutputDir.filePath()) <= 0:
             self.dockwidget.rainfallOutputDir.setFilePath(self.dockwidget.outputDir.filePath())
             
-        if os.path.exists(os.path.join(self.outputPath, "temp.tif")):
-            os.remove(os.path.join(self.outputPath, "temp.tif"))
+        if os.path.exists(os.path.join(self.outputPath, "QMydro_SubCats.tif")):
+            os.remove(os.path.join(self.outputPath, "QMydro_SubCats.tif"))
             
-        if os.path.exists(os.path.join(self.outputPath, "temp.tif.aux.xml")):
-            os.remove(os.path.join(self.outputPath, "temp.tif.aux.xml"))
+        if os.path.exists(os.path.join(self.outputPath, "QMydro_SubCats.tif.aux.xml")):
+            os.remove(os.path.join(self.outputPath, "QMydro_SubCats.tif.aux.xml"))
     
     def run(self):
         """Run method that loads and starts the plugin"""
@@ -1047,18 +916,12 @@ class QMydro():
             
             self.dockwidget.inputElevationFile.setFilters(QgsMapLayerProxyModel.RasterLayer)
             self.dockwidget.inputElevationFile.setCurrentIndex(-1)
-            self.selectRasterLayer()
-            self.dockwidget.inputElevationFile.activated.connect(self.selectRasterLayer)
             
             self.dockwidget.inputCarveFile.setFilters(QgsMapLayerProxyModel.LineLayer)
             self.dockwidget.inputCarveFile.setCurrentIndex(-1)
-            self.selectCarveLayer()
-            self.dockwidget.inputCarveFile.activated.connect(self.selectCarveLayer)
             
             self.dockwidget.inputOutletsFile.setFilters(QgsMapLayerProxyModel.LineLayer)
             self.dockwidget.inputOutletsFile.setCurrentIndex(-1)
-            self.selectOutletsLayer()
-            self.dockwidget.inputOutletsFile.activated.connect(self.selectOutletsLayer)
             
             # QgsProject.instance().layersAdded.connect(self.getQgisInstanceProperties)
             # QgsProject.instance().layersRemoved.connect(self.getQgisInstanceProperties)

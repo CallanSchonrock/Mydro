@@ -188,15 +188,15 @@ namespace Mydro
             double hydraulicCoefficient;
             if (conveyanceArea < linHydraulicArea)
             {
-                hydraulicCoefficient = linHydraulicSlope * conveyanceArea;
+                hydraulicCoefficient = Math.Max(0.1,linHydraulicSlope * conveyanceArea);
             }
             else if (kappa == 0 && delta == 0)
             {
-                hydraulicCoefficient = (double)Math.Max(0, 0.3 * Math.Log(conveyanceArea) + -0.3);
+                hydraulicCoefficient = (double)Math.Max(0.1, 0.3 * Math.Log(conveyanceArea) + -0.3);
             }
             else
             {
-                hydraulicCoefficient = Math.Max(0, kappa * Math.Log(conveyanceArea) + delta);
+                hydraulicCoefficient = Math.Max(0.1, kappa * Math.Log(conveyanceArea) + delta);
             }
             
             return hydraulicCoefficient;

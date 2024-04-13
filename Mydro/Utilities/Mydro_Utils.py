@@ -45,9 +45,10 @@ def rank_flows(output_directory, subcat_columns, aeps, durations, ensembles, plo
                     plt.clf()
                     plt.boxplot(boxPlotData)
                     plt.xlabel('Durations')
-                    plt.xticks(range(1, len([dur[1] for dur in durations]) + 1), [dur[1] for dur in durations]) 
+                    plt.xticks(range(1, len([dur for dur in durations]) + 1), [dur for dur in durations], rotation=90) 
                     plt.ylabel('Cumecs')
                     plt.title(aep)
+                    plt.tight_layout()
                     plt.savefig(os.path.join(output_directory, f'_{subcat}_{aep}_QBoxPlot.png'))
 
 
@@ -80,20 +81,20 @@ def interpolate_2d(points, x, y, kx=1, ky=1):
     return interpolated_value
 
 # rank_flows example usage
-# path = r"E:\Python\QGIS\PyCatch\Mydro\Examples\EPR\run\output"
-# subcat_cols = ["Q_36", "Q_1"]
+path = r"E:\Python\QGIS\PyCatch\Mydro\Examples\EPR\run\output"
+subcat_cols = ["Q_36", "Q_1"]
 
-# aeps = ['063','001']
-# durs = ['015m','030m','045m','060m','090m','120m','180m','270m','360m','540m','720m','1080m','1440m']
-# enses = ['E0','E1','E2','E3','E4','E5','E6','E7','E8','E9']
+aeps = ['063','001']
+durs = ['015m','030m','045m','060m','090m','120m','180m','270m','360m','540m','720m','1080m','1440m']
+enses = ['E0','E1','E2','E3','E4','E5','E6','E7','E8','E9']
 
-# rank_flows(path, subcat_cols, aeps, durs, enses, plot_ranks=True)
+rank_flows(path, subcat_cols, aeps, durs, enses, plot_ranks=True)
 
 
 # Example usage
-points = [(0, 0, 1), (1, 0, 2), (0, 10, 3), (1, 10, 4)]  # Example points
-x = 0.5  # Example x-coordinate for interpolation
-y = 0.5  # Example y-coordinate for interpolation
+# points = [(0, 0, 1), (1, 0, 2), (0, 10, 3), (1, 10, 4)]  # Example points
+# x = 0.5  # Example x-coordinate for interpolation
+# y = 0.5  # Example y-coordinate for interpolation
 
-interpolated_value = interpolate_2d(points, x, y)
-print("Interpolated value at (0.5, 0.5):", interpolated_value)
+# interpolated_value = interpolate_2d(points, x, y)
+# print("Interpolated value at (0.5, 0.5):", interpolated_value)
