@@ -349,4 +349,4 @@ def getRainfallData(lon, lat, useARF, area, dirname):
     ifds = get_ifds(lon, lat, durs, dirname, aeps)
     temporalPatterns = get_temporalPatterns(results['PointTP']['url'],results['ArealTP']['url'], area, ifds, arfs, aeps, formattedAeps, durs, dirname) 
 
-getRainfallData(152.93223,-27.79944,True,55.56753,r"R:\Jobs\24020147_Logan_Flood_Study_2024_Flagstone_Creek\Analysis\URBS\design\ifd\Rainfall")
+# getRainfallData(152.93223,-27.79944,True,55.56753,r"R:\Jobs\24020147_Logan_Flood_Study_2024_Flagstone_Creek\Analysis\URBS\design\ifd\Rainfall")

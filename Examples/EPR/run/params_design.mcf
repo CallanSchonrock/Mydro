@@ -6,6 +6,9 @@ cat=..\Model\catch\Outputs\_SubcatFile.csv
 vec=..\Model\catch\Outputs\_RoutingFile.vec
 
 IL=..\Model\EPR_InitialLosses.csv
+! In mm/hr only applies when no rainfall is experienced in timestep
+IL Recovery Rate=2
+! In mm/hr
 CL=1.7
 
 ! cal file must be in format Time (h), id, id, id...

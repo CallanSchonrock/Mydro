@@ -1,0 +1,271 @@
+{MODEL NAME}
+RAIN #4
+STORE.
+	RAIN #5
+	STORE.
+		RAIN #7
+		ROUTE THRU #6
+		ADD RAIN #6
+	GET.
+GET.
+ROUTE THRU #2
+ADD RAIN #2
+ROUTE THRU #38
+ADD RAIN #38
+STORE.
+	RAIN #37
+	STORE.
+		RAIN #39
+		STORE.
+			RAIN #43
+			STORE.
+				RAIN #45
+				STORE.
+					RAIN #46
+				GET.
+				ROUTE THRU #44
+				ADD RAIN #44
+			GET.
+			ROUTE THRU #41
+			ADD RAIN #41
+			STORE.
+				RAIN #48
+				STORE.
+					RAIN #55
+					ROUTE THRU #53
+					ADD RAIN #53
+					STORE.
+						RAIN #58
+						ROUTE THRU #56
+						ADD RAIN #56
+						STORE.
+							RAIN #57
+						GET.
+						ROUTE THRU #54
+						ADD RAIN #54
+					GET.
+					ROUTE THRU #52
+					ADD RAIN #52
+					ROUTE THRU #50
+					ADD RAIN #50
+					STORE.
+						RAIN #51
+						STORE.
+							RAIN #59
+							STORE.
+								RAIN #63
+								ROUTE THRU #61
+								ADD RAIN #61
+								STORE.
+									RAIN #66
+									STORE.
+										RAIN #67
+									GET.
+									ROUTE THRU #64
+									ADD RAIN #64
+									STORE.
+										RAIN #65
+									GET.
+									ROUTE THRU #62
+									ADD RAIN #62
+									STORE.
+										RAIN #76
+										ROUTE THRU #74
+										ADD RAIN #74
+										STORE.
+											RAIN #75
+											STORE.
+												RAIN #77
+												STORE.
+													RAIN #84
+													STORE.
+														RAIN #85
+														STORE.
+															RAIN #88
+															STORE.
+																RAIN #89
+															GET.
+															ROUTE THRU #86
+															ADD RAIN #86
+															STORE.
+																RAIN #87
+															GET.
+														GET.
+													GET.
+													ROUTE THRU #83
+													ADD RAIN #83
+													ROUTE THRU #81
+													ADD RAIN #81
+													STORE.
+														RAIN #92
+														STORE.
+															RAIN #94
+															STORE.
+																RAIN #96
+																STORE.
+																	RAIN #97
+																	STORE.
+																		RAIN #98
+																		STORE.
+																			RAIN #101
+																			ROUTE THRU #99
+																			ADD RAIN #99
+																			STORE.
+																				RAIN #102
+																				STORE.
+																					RAIN #103
+																					STORE.
+																						RAIN #104
+																						STORE.
+																							RAIN #106
+																							STORE.
+																								RAIN #107
+																							GET.
+																							ROUTE THRU #105
+																							ADD RAIN #105
+																						GET.
+																					GET.
+																				GET.
+																				ROUTE THRU #100
+																				ADD RAIN #100
+																			GET.
+																		GET.
+																	GET.
+																GET.
+																ROUTE THRU #95
+																ADD RAIN #95
+															GET.
+															ROUTE THRU #93
+															ADD RAIN #93
+														GET.
+														ROUTE THRU #90
+														ADD RAIN #90
+														STORE.
+															RAIN #91
+														GET.
+														ROUTE THRU #82
+														ADD RAIN #82
+													GET.
+													ROUTE THRU #79
+													ADD RAIN #79
+													STORE.
+														RAIN #80
+													GET.
+													ROUTE THRU #78
+													ADD RAIN #78
+												GET.
+											GET.
+										GET.
+										ROUTE THRU #68
+										ADD RAIN #68
+										STORE.
+											RAIN #72
+											STORE.
+												RAIN #73
+											GET.
+											ROUTE THRU #70
+											ADD RAIN #70
+											STORE.
+												RAIN #71
+											GET.
+											ROUTE THRU #69
+											ADD RAIN #69
+										GET.
+									GET.
+								GET.
+								ROUTE THRU #60
+								ADD RAIN #60
+							GET.
+						GET.
+					GET.
+					ROUTE THRU #49
+					ADD RAIN #49
+				GET.
+				ROUTE THRU #47
+				ADD RAIN #47
+				ROUTE THRU #42
+				ADD RAIN #42
+			GET.
+			ROUTE THRU #40
+			ADD RAIN #40
+		GET.
+	GET.
+GET.
+ROUTE THRU #1
+ADD RAIN #1
+STORE. ! Final Outlet
+RAIN #10
+STORE.
+	RAIN #11
+	STORE.
+		RAIN #16
+		STORE.
+			RAIN #17
+		GET.
+		ROUTE THRU #15
+		ADD RAIN #15
+		ROUTE THRU #14
+		ADD RAIN #14
+		ROUTE THRU #12
+		ADD RAIN #12
+		STORE.
+			RAIN #13
+		GET.
+	GET.
+	ROUTE THRU #9
+	ADD RAIN #9
+GET.
+ROUTE THRU #8
+ADD RAIN #8
+STORE.
+	RAIN #18
+	STORE.
+		RAIN #20
+		STORE.
+			RAIN #22
+			STORE.
+				RAIN #24
+				STORE.
+					RAIN #27
+					STORE.
+						RAIN #28
+					GET.
+					ROUTE THRU #26
+					ADD RAIN #26
+					STORE.
+						RAIN #31
+						STORE.
+							RAIN #32
+							STORE.
+								RAIN #36
+								ROUTE THRU #34
+								ADD RAIN #34
+								STORE.
+									RAIN #35
+								GET.
+								ROUTE THRU #33
+								ADD RAIN #33
+							GET.
+						GET.
+						ROUTE THRU #30
+						ADD RAIN #30
+						ROUTE THRU #29
+						ADD RAIN #29
+					GET.
+					ROUTE THRU #25
+					ADD RAIN #25
+				GET.
+				ROUTE THRU #23
+				ADD RAIN #23
+			GET.
+			ROUTE THRU #21
+			ADD RAIN #21
+		GET.
+		ROUTE THRU #19
+		ADD RAIN #19
+	GET.
+GET.
+ROUTE THRU #3
+ADD RAIN #3
+GET.
+END OF CATCHMENT DATA.

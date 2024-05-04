@@ -10,7 +10,7 @@ namespace Mydro
     // Global variables be careful with Dt, it changes to Dt / Intermediate Steps within the script
     public static class GlobalVariables
     {
-        public static double Alpha = 1.0, Beta = 4.0, m = 0.8, NonLin = 1, X = 0.1, Dt = (double) (1d / 12d) * 3600d, IL = 0, CL = 0, IntermediateSteps = 4;
+        public static double Alpha = 1.0, Beta = 4.0, m = 0.8, NonLin = 1, X = 0.1, Dt = (double) (1d / 12d) * 3600d, IL = 0, CL = 0, IntermediateSteps = 4, ilRecoveryRate = 0;
         public static Dictionary<string, List<double>> recordedFlows = new Dictionary<string, List<double>>();
     }
 
@@ -92,6 +92,10 @@ namespace Mydro
             // Put rainfall into time area diagram
             Rain_on_catchment(totalRainfall);
             // Reduce catchment specific IL
+            if (totalRainfall == 0)
+            {
+                catchIL = Math.Max(catchIL + GlobalVariables.ilRecoveryRate * GlobalVariables.Dt, GlobalVariables.IL);
+            }
             catchIL = Math.Max(0, catchIL - totalRainfall);
             // Route catchment excess water through storage after time area diagram into channel storage
             CatchDischarge();
@@ -235,16 +239,23 @@ namespace Mydro
             double discharge = outflows * GlobalVariables.Dt;
             channelStorage -= discharge;
 
-            for (int i = 0; i < storages.Count; i++)
+            for (int i = 0; i < storages.Count; i++) // Number of storages in subcatchment
             {
                 var updatedStorages = (storages[i].Item1, storages[i].Item2 + discharge);
                 storages[i] = updatedStorages;
-                for (int j = 0; j < storages[i].Item1.Count; j++)
+                for (int j = 0; j < storages[i].Item1.Count; j++) // Loop through storage Discharge Pairs
                 {
-                    if (storages[i].Item1[j].Item1 * 1000 <= storages[i].Item2)
+                    if (storages[i].Item1[j].Item1 <= storages[i].Item2)  // If Storage (ML) in Storage Discharge Pair <= Current Storage
                     {
-                        double gradient = (storages[i].Item1[j + 1].Item2 - storages[i].Item1[j].Item2) / (storages[i].Item1[j + 1].Item1 * 1000 - storages[i].Item1[j].Item1 * 1000);
-                        outflows = storages[i].Item1[j].Item2 + gradient * (storages[i].Item2 - storages[i].Item1[j].Item1 * 1000);
+                        if (storages[i].Item1.Count - 1 >= j + 1) // If Current Storage exceeds last storage discharge Pair
+                        {
+                            outflows = storages[i].Item1[j].Item2;
+                        }
+                        else
+                        {
+                            double gradient = (storages[i].Item1[j + 1].Item2 - storages[i].Item1[j].Item2) / (storages[i].Item1[j + 1].Item1 - storages[i].Item1[j].Item1);
+                            outflows = storages[i].Item1[j].Item2 + gradient * (storages[i].Item2 - storages[i].Item1[j].Item1);
+                        }
                         discharge = outflows * GlobalVariables.Dt;
                         updatedStorages = (storages[i].Item1, storages[i].Item2 - discharge);
                         storages[i] = updatedStorages;
@@ -304,6 +315,7 @@ namespace Mydro
             if (fileName != null)
             {
                 Console.WriteLine(fileName);
+                /*
                 content.AppendLine($"Alpha:,{parameters[0]},Beta:,{parameters[1]},m:,{parameters[2]}");
                 localContent.AppendLine($"Alpha:,{parameters[0]},Beta:,{parameters[1]},m:,{parameters[2]}");
 
@@ -334,6 +346,7 @@ namespace Mydro
                 }
                 content.AppendLine();
                 localContent.AppendLine();
+                */
                 content.Append($"Time (hours)");
                 localContent.Append($"Time (hours)");
                 foreach (Subcatchment sub in currentSubbys)

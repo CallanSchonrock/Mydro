@@ -26,6 +26,8 @@ _UpgradeReport_Files/
 bin/
 obj/
 TestResults/
+_ss/
+_Contractual
 ###################
 # Web publish log #
 ###################

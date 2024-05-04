@@ -601,44 +601,23 @@ class QMydro():
                 else:
                     openPort = port
                     break   
-            f = open(os.path.join(self.plugin_dir, "scripts//CS//port.txt"), 'w')
-            f.write(str(openPort))
-            f.close()
             time.sleep(0.1)
             sock.bind(('localhost', openPort))
             sock.listen(1)
-            subprocess_proc = subprocess.Popen(os.path.join(self.plugin_dir, "scripts//CS//delineateCatch.exe"), cwd=os.path.join(self.plugin_dir, "scripts//CS"))  # Use text mode for easier handling of output
-            conn, addr = sock.accept() # Wait for a connection from the C# application
-            
-            # Send Raster File Path
-            file_path = self.elevationRaster.dataProvider().dataSourceUri()
-            conn.send(struct.pack('i',len(file_path.encode(encoding="ascii"))))
-            conn.send(file_path.encode(encoding="ascii"))
-            # Send Carve File Path
             if self.carveLayer != None:
-                file_path = self.carveLayer.dataProvider().dataSourceUri()
+                carve_path = self.carveLayer.dataProvider().dataSourceUri()
             else:
-                file_path = ""
-            conn.send(struct.pack('i',len(file_path.encode(encoding="ascii"))))
-            conn.send(file_path.encode(encoding="ascii"))
-            # Send Outlets File Path
-            file_path = self.outletsLayer.dataProvider().dataSourceUri()
-            conn.send(struct.pack('i',len(file_path.encode(encoding="ascii"))))
-            conn.send(file_path.encode(encoding="ascii"))
+                carve_path = 0
             
-            conn.send(struct.pack('i',len(self.outputPath.encode(encoding="ascii"))))
-            conn.send(self.outputPath.encode(encoding="ascii"))
-            
+            targetSize = 0
             if self.autoBreakup: # If auto breakup is toggled
-                conn.send(struct.pack('f',self.targetSubcatSize))
+                targetSize = self.targetSubcatSize
             else:
-                conn.send(struct.pack('f',0)) # C# script handles 0 as autobreakup off
+                targetSize = 0
             
-            # conn.send(struct.pack("i", len(self.outletCells))) # Send the number of lists
-            # for inner_list in self.outletCells:
-                # conn.send(struct.pack("i", len(inner_list))) # Send the number of tuples in the inner list
-                # for cell in inner_list:
-                    # conn.send(struct.pack("ii", cell[0], cell[1])) # Send each tuple
+            args = [str(openPort),self.elevationRaster.dataProvider().dataSourceUri(),str(carve_path),self.outletsLayer.dataProvider().dataSourceUri(),self.outputPath,str(targetSize),self.dockwidget.modelType.currentText()]
+            subprocess_proc = subprocess.Popen([os.path.join(self.plugin_dir, "scripts//CS//delineateCatch.exe")] + args, cwd=os.path.join(self.plugin_dir, "scripts//CS"))  # Use text mode for easier handling of output
+            conn, addr = sock.accept() # Wait for a connection from the C# application
             
             subCatCountBytes = conn.recv(4)
             subCount = struct.unpack('<I', subCatCountBytes)[0]
@@ -776,16 +755,20 @@ class QMydro():
                 reader = csv.reader(csvfile, delimiter=' ')
                 usSubbies = []
                 for rows in reader:
-                    if "RAIN" in rows:
-                        for text in rows:
+                    data = []
+                    for field in rows:
+                        split_data = [item for item in field.split('\t')]
+                        data.extend(split_data)
+                    if "RAIN" in data:
+                        for text in data:
                             if '#' in text:
                                 usSubbies.insert(0,text[1:])
-                    if "GET." in rows:
+                    if "GET." in data:
                         usSubbies = usSubbies[:-1] + usSubbies[-1]
-                    if "STORE." in rows:
+                    if "STORE." in data:
                         usSubbies = [usSubbies]
-                    if "ROUTE" in rows:
-                        for text in rows:
+                    if "ROUTE" in data:
+                        for text in data:
                             if '#' in text:
                                 dsSubbyCentroid = centroids[text[1:]]
                                 print(usSubbies)
@@ -836,11 +819,11 @@ class QMydro():
         # Remove existing files in output directory
         filesToRemove = []
         for files in os.listdir(self.outputPath):
-            if files[:8] == "QMydro_Streams.":
+            if "QMydro_Streams." in files:
                 filesToRemove.extend([files])
-            elif files[:14] == "QMydro_SubCats.":
+            elif "QMydro_SubCats." in files:
                 filesToRemove.extend([files])
-            elif files[:11] == "QMydro_NodalLinks.":
+            elif "QMydro_NodalLinks." in files:
                 filesToRemove.extend([files])
         
         for files in filesToRemove:
@@ -855,11 +838,6 @@ class QMydro():
         if os.path.exists(os.path.join(self.outputPath, "QMydro_SubCats.tif.aux.xml")):
             os.remove(os.path.join(self.outputPath, "QMydro_SubCats.tif.aux.xml"))
             
-        # time.sleep(0.1)
-        # self.extractRastData() # Convert raster data to numpy 2D data
-        # if type(self.carveLayer) == QgsVectorLayer: # Optional Arg
-            # self.carveRaster()
-        # self.getOutletPixels() # Get outlet pixels to send to C#
         time.sleep(0.1) # Wait before large file transfer
         self.transferData() # Transfer and process externally
         shutil.copy(os.path.join(self.plugin_dir, "scripts//CS//TempVecFile.vec"), os.path.join(self.outputPath, "_RoutingFile.vec"))
@@ -911,8 +889,7 @@ class QMydro():
             # show the dockwidget
             self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockwidget)
             
-            # Update QGIS Instance
-            # self.getQgisInstanceProperties()
+            # Catchment Breakup
             
             self.dockwidget.inputElevationFile.setFilters(QgsMapLayerProxyModel.RasterLayer)
             self.dockwidget.inputElevationFile.setCurrentIndex(-1)
@@ -922,9 +899,6 @@ class QMydro():
             
             self.dockwidget.inputOutletsFile.setFilters(QgsMapLayerProxyModel.LineLayer)
             self.dockwidget.inputOutletsFile.setCurrentIndex(-1)
-            
-            # QgsProject.instance().layersAdded.connect(self.getQgisInstanceProperties)
-            # QgsProject.instance().layersRemoved.connect(self.getQgisInstanceProperties)
             
             self.dockwidget.outputDir.setDialogTitle('Select Directory')
             self.dockwidget.outputDir.fileChanged.connect(self.defineOutputPath)
@@ -940,6 +914,10 @@ class QMydro():
             self.dockwidget.gisSubdir.setText("model")
             self.dockwidget.toggleGisSubdir.setChecked(False)
             self.dockwidget.toggleGisSubdir.stateChanged.connect(self.toggleGisSubdir)
+            
+            # Populate the combo box with the list of items
+            itemList = ["Mydro", "URBS"]
+            self.dockwidget.modelType.addItems(itemList)
             
             # GENERATE RAIN TAB
             

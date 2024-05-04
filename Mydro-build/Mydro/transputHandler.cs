@@ -10,7 +10,8 @@ namespace Transput_Handler
         public string Id;
         public List<string> UpstreamSubcatchments = new List<string>();
         public List<(List<(double, double)>, double)> sq = new List<(List<(double, double)>, double)>();
-        public double? VBF;
+        public List<List<(double, double)>> storageArea = new List<List<(double, double)>>();
+        public double? V0;
         public double? EVAP;
     }
 
@@ -49,96 +50,126 @@ namespace Transput_Handler
                     subsToRoute.Add(new List<string>());
                     string line;
                     int storageLines = 0;
+                    int countLines = 0;
                     while ((line = reader.ReadLine()) != null)
                     {
-                        string[] delim_row = line.Split(' ');
-                        string? rowId = null;
-                        if (storageLines > 0)
+                        countLines++;
+                        try
                         {
-                            vecInfo[lastCatch].sq[vecInfo[lastCatch].sq.Count - 1].Item1.Add((Convert.ToDouble(delim_row[0]), Convert.ToDouble(delim_row[delim_row.Length - 1])));
-                            storageLines -= 1;
-                            continue;
-                        }
-                        for (int i = 0; i < delim_row.Length; i++)
-                        {
-
-                            try
+                            string[] delim_row = line.Split(new char[] { ',', ' ', '\t' });
+                            // Find the index of the word containing the exclamation mark
+                            int indexOfExclamation = -1;
+                            for (int i = 0; i < delim_row.Length; i++)
                             {
-                                if (delim_row[i][0] == '#')
+                                if (delim_row[i].Contains('!'))
                                 {
-                                    rowId = delim_row[i].Substring(1);
-                                    if (!vecInfo.TryGetValue(rowId, out VecSubby existingValue))
-                                    {
-                                        vecInfo.Add(rowId, new VecSubby());
-                                    }
-                                    vecInfo[rowId].Id = rowId;
-                                    lastCatch = rowId;
+                                    indexOfExclamation = i;
+                                    break;
                                 }
                             }
-                            catch (Exception)
+
+                            if (indexOfExclamation != -1)
                             {
+                                Array.Resize(ref delim_row, indexOfExclamation); // Resize the array to exclude elements after "!"
+                            }
+                            string? rowId = null;
+                            if (storageLines > 0)
+                            {
+                                vecInfo[lastCatch].sq[vecInfo[lastCatch].sq.Count - 1].Item1.Add((Convert.ToDouble(delim_row[0]) * 1000, Convert.ToDouble(delim_row[delim_row.Length - 1])));
+                                storageLines -= 1;
+                                continue;
+                            }
+                            for (int i = 0; i < delim_row.Length; i++)
+                            {
+
+                                try
+                                {
+                                    if (delim_row[i][0] == '#')
+                                    {
+                                        rowId = delim_row[i].Substring(1);
+                                        if (!vecInfo.TryGetValue(rowId, out VecSubby existingValue))
+                                        {
+                                            vecInfo.Add(rowId, new VecSubby());
+                                        }
+                                        vecInfo[rowId].Id = rowId;
+                                        lastCatch = rowId;
+                                    }
+                                }
+                                catch (Exception)
+                                {
+
+                                }
 
                             }
-
-                        }
-                        if (delim_row[0] == "RAIN" || delim_row[0] == "ADD")
-                        {
-                            subsToRoute[subsToRoute.Count - 1].Add(rowId);
-                            orderOfProcessing.Add(rowId);
-                        }
-                        else if (delim_row[0] == "STORE.")
-                        {
-                            subsToRoute.Add(new List<string>());
-                        }
-                        else if (delim_row[0] == "GET.")
-                        {
-                            List<string> lastList = subsToRoute[subsToRoute.Count - 1];
-                            List<string> secondLastList = subsToRoute[subsToRoute.Count - 2];
-
-                            secondLastList.AddRange(lastList); // Merge the last two lists
-
-                            subsToRoute.RemoveAt(subsToRoute.Count - 1); // Remove the last list
-                        }
-                        else if (delim_row[0] == "ROUTE")
-                        {
-                            vecInfo[rowId].UpstreamSubcatchments.AddRange(subsToRoute[subsToRoute.Count - 1]);
-                            subsToRoute.RemoveAt(subsToRoute.Count - 1); // Remove the last list
-                            subsToRoute.Add(new List<string>());
-                        }
-                        else if (delim_row[0] == "LOCATION.")
-                        {
-                            lastLocation = delim_row[1];
-                        }
-                        else if (delim_row[0] == "DAM")
-                        {
-                            string lastInfo = "";
-                            for (int i = 1; i < delim_row.Length; i++)
+                            if (delim_row.Contains("RAIN") || delim_row.Contains("ADD"))
                             {
-                                if (delim_row[i] != "=")
+                                subsToRoute[subsToRoute.Count - 1].Add(rowId);
+                                orderOfProcessing.Add(rowId);
+                            }
+                            else if (delim_row.Contains("STORE."))
+                            {
+                                subsToRoute.Add(new List<string>());
+                            }
+                            else if (delim_row.Contains("GET."))
+                            {
+                                List<string> lastList = subsToRoute[subsToRoute.Count - 1];
+                                List<string> secondLastList = subsToRoute[subsToRoute.Count - 2];
+
+                                secondLastList.AddRange(lastList); // Merge the last two lists
+
+                                subsToRoute.RemoveAt(subsToRoute.Count - 1); // Remove the last list
+                            }
+                            else if (delim_row.Contains("ROUTE"))
+                            {
+                                vecInfo[rowId].UpstreamSubcatchments.AddRange(subsToRoute[subsToRoute.Count - 1]);
+                                subsToRoute.RemoveAt(subsToRoute.Count - 1); // Remove the last list
+                                subsToRoute.Add(new List<string>());
+                            }
+                            else if (delim_row[0] == "DAM")
+                            {
+                                string lastInfo = "";
+                                for (int i = 1; i < delim_row.Length; i++)
                                 {
-                                    if (lastInfo == "")
+                                    if (delim_row[i] != "=")
                                     {
+                                        if (lastInfo == "")
+                                        {
+                                            lastInfo = delim_row[i];
+                                        }
+                                        else if (lastInfo.ToLower() == "file")
+                                        {
+                                            vecInfo[lastCatch].sq.Add((getStorageDischargeFile(delim_row[i]), 0)); // want to send the text after the = sign;
+                                            lastInfo = "";
+                                        }
+                                        else if (lastInfo.ToLower() == "number")
+                                        {
+                                            vecInfo[lastCatch].sq.Add((new List<(double, double)>(), 0));
+                                            storageLines = Convert.ToInt32(delim_row[i]);
+                                            lastInfo = "";
+                                        }else if (lastInfo.ToLower() == "v0")
+                                        {
+                                            vecInfo[lastCatch].V0 = Convert.ToDouble(delim_row[i]);
+                                            lastInfo = "";
+                                        }
+                                        else if (lastInfo.ToLower() == "evap")
+                                        {
+                                            vecInfo[lastCatch].EVAP = Convert.ToDouble(delim_row[i]) / 24 / 3600; // Cumecs or mm/day
+                                            lastInfo = "";
+                                        }
+                                        else if (lastInfo.ToLower() == "storagearea")
+                                        {
+                                            vecInfo[lastCatch].storageArea.Add((getStorageDischargeFile(delim_row[i]))); // want to send the text after the = sign;
+                                            lastInfo = "";
+                                            // STILL TO HANDLE STORAGE AREA FILE
+                                        }
                                         lastInfo = delim_row[i];
                                     }
-                                    else if (lastInfo == "VBF")
-                                    {
-                                        vecInfo[lastCatch].VBF = Convert.ToDouble(delim_row[i]);
-                                        lastInfo = "";
-                                    }
-                                    else if (lastInfo == "FILE")
-                                    {
-                                        vecInfo[lastCatch].sq.Add((getStorageDischargeFile(delim_row[i]), 0)); // want to send the text after the = sign;
-                                        lastInfo = "";
-                                    }
-                                    else if (lastInfo == "NUMBER")
-                                    {
-                                        vecInfo[lastCatch].sq.Add((new List<(double, double)>(), 0));
-                                        storageLines = Convert.ToInt32(delim_row[i]);
-                                        lastInfo = "";
-                                    }
-                                    lastInfo = delim_row[i];
                                 }
                             }
+                        }catch (Exception ex)
+                        {
+                            Console.WriteLine(ex.Message);
+                            Console.WriteLine($"Error on line {countLines} of Routing file {vec_filePath}");
                         }
                     }
 
@@ -149,7 +180,7 @@ namespace Transput_Handler
                         bool firstRow = true;
                         while ((line = dbaseReader.ReadLine()) != null)
                         {
-                            string[] delim_row = line.Split(",");
+                            string[] delim_row = line.Split(new char[] { ',', '\t' });
                             if (firstRow)
                             {
                                 if (delim_row[0][0] == '!') { continue; }
@@ -230,7 +261,7 @@ namespace Transput_Handler
                 while ((line = dbaseReader.ReadLine()) != null)
                 {
                     // Console.WriteLine(line);
-                    string[] delim_row = line.Split(',');
+                    string[] delim_row = line.Split(new char[] { ',', '\t' });
                     if (firstRow)
                     {
                         if (delim_row.Length > 0)
@@ -302,8 +333,8 @@ namespace Transput_Handler
             List<(double, double)> storagePairs = new List<(double, double)>();
             using (TextFieldParser parser = new TextFieldParser(fileName))
             {
-                // Set the delimiter for the CSV file
-                parser.Delimiters = new string[] { " ", "\t", "\r" };
+                // Set the delimiter for the CSV files
+                parser.Delimiters = new string[] { ",", "\t" };
                 int countLines = 1;
                 while (!parser.EndOfData)
                 {
@@ -311,7 +342,30 @@ namespace Transput_Handler
                     List<string> fields = parser.ReadFields().ToList();
                     if (fields.Count > 1 && countLines > 2)
                     {
-                        storagePairs.Add((Convert.ToDouble(fields[0]), Convert.ToDouble(fields[fields.Count - 1])));
+                        string? storage = null;
+                        string? discharge = null;
+                        foreach (string field in fields)
+                        {
+                            if (field.Contains("Storage"))
+                            {
+                                continue;
+                            }
+                            if (storage == null)
+                            {
+                                if (!string.IsNullOrEmpty(field)) { storage = field; } // MEGALITRE
+                            }
+                            else
+                            {
+                                if (!string.IsNullOrEmpty(field)) { discharge = field; break; }
+                            }
+                        }
+                        try
+                        {
+                            storagePairs.Add((Convert.ToDouble(storage) * 1000, Convert.ToDouble(discharge))); // Conversion to Cubic metres
+                        }catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error in Storage Discharge File {fileName} Line: {countLines}");
+                        }
                     }
                     countLines++;
                 }
@@ -327,7 +381,7 @@ namespace Transput_Handler
                 string line;
                 while ((line = reader.ReadLine()) != null)
                 {
-                    string[] delim_row = line.Split(',');
+                    string[] delim_row = line.Split(new char[] { ',', '\t' });
 
                     if (delim_row[0] == "Index")
                     {
@@ -425,71 +479,74 @@ public class fileLocations
     public string fitsFileName = "BestFits.csv";
     public string outputFile = "Output.csv";
     public string outputDir = "Outputs";
-    public string IL;
-    public double CL;
+    public string IL = "0";
+    public double CL = 0;
     public double X = 0.1;
     public double N = 1;
     public double alpha = 0;
     public double beta = 0;
     public double m = 0;
     public string rdf;
+    public double ilRecoveryRate = 0; // mm/hr
 
     public fileLocations(string paramFile)
     {
         using (TextFieldParser parser = new TextFieldParser(paramFile))
         {
             // Set the delimiter for the CSV file
-            parser.Delimiters = new string[] { "=", " ", "," };
+            parser.Delimiters = new string[] { "=", ",", "!" };
 
             // Read the fields while the end of the file is not reached
             while (!parser.EndOfData)
             {
+
                 List<string> fields = parser.ReadFields().ToList();
+
                 if (fields.Count > 0)
                 {
-                    if (fields[0].ToLower() == "cat")
+                    if (fields[0].Trim().ToLower() == "cat")
                     {
-                        catchmentFile = fields[fields.Count - 1].Replace("\\", "\\\\");
+                        catchmentFile = fields[1].Trim().Replace("\\", "\\\\");
                     }
-                    else if (fields[0].ToLower() == "run")
+                    else if (fields[0].Trim().ToLower() == "run")
                     {
-                        run = fields[fields.Count - 1].Replace("\\", "\\\\");
+                        run = fields[1].Trim().Replace("\\", "\\\\");
                     }
-                    else if (fields[0].ToLower() == "vec")
+                    else if (fields[0].Trim().ToLower() == "vec")
                     {
-                        vectorFile = fields[fields.Count - 1].Replace("\\", "\\\\");
+                        vectorFile = fields[1].Trim().Replace("\\", "\\\\");
                     }
-                    else if (fields[0].ToLower() == "cal")
+                    else if (fields[0].Trim().ToLower() == "cal")
                     {
-                        recordedFlows = fields[fields.Count - 1].Replace("\\", "\\\\");
+                        recordedFlows = fields[1].Trim().Replace("\\", "\\\\");
                     }
-                    else if (fields[0].ToLower() == "fits")
+                    else if (fields[0].Trim().ToLower() == "fits")
                     {
-                        fitsFileName = fields[fields.Count - 1].Replace("\\", "\\\\");
+                        fitsFileName = fields[1].Trim().Replace("\\", "\\\\");
                     }
-                    else if (fields[0].ToLower() == "output")
+                    else if (fields[0].Trim().ToLower() == "output")
                     {
-                        outputFile = fields[fields.Count - 1].Replace("\\", "\\\\");
+                        outputFile = fields[1].Trim().Replace("\\", "\\\\");
                     }
-                    else if (fields[0].ToUpper() == "IL")
+                    else if (fields[0].Trim().ToUpper() == "IL")
                     {
-                        IL = fields[fields.Count - 1];
+                        IL = fields[1].Trim();
                     }
-                    else if (fields[0].ToUpper() == "CL")
+                    else if (fields[0].Trim().ToUpper() == "CL")
                     {
-                        CL = Convert.ToDouble(fields[fields.Count - 1]);
+                        CL = Convert.ToDouble(fields[1].Trim());
                     }
-                    else if (fields[0].ToUpper() == "N")
+                    else if (fields[0].Trim().ToUpper() == "N")
                     {
-                        N = Convert.ToDouble(fields[fields.Count - 1]);
+                        N = Convert.ToDouble(fields[1].Trim());
                     }
-                    else if (fields[0].ToUpper() == "X")
+                    else if (fields[0].Trim().ToUpper() == "X")
                     {
-                        X = Convert.ToDouble(fields[fields.Count - 1]);
+                        X = Convert.ToDouble(fields[1].Trim());
                     }
-                    else if (fields[0].ToLower() == "dbase")
+                    else if (fields[0].Trim().ToLower() == "dbase")
                     {
-                        dbaseFile = fields[fields.Count - 1].Replace("\\", "\\\\");
+                        dbaseFile = fields[1].Trim().Replace("\\", "\\\\");
                     }
                     else if (fields[0].ToLower() == "aep" || fields[0].ToLower() == "aeps" || fields[0].ToLower() == "ari" || fields[0].ToLower() == "aris")
                     {
@@ -525,21 +582,25 @@ public class fileLocations
                             }
                         }
                     }
-                    else if (fields[0].ToLower() == "outputdir")
+                    else if (fields[0].Trim().ToLower() == "outputdir")
                     {
-                        outputDir = fields[fields.Count - 1].Replace("\\", "\\\\");
+                        outputDir = fields[1].Trim().Replace("\\", "\\\\");
                     }
-                    else if (fields[0].ToLower() == "a")
+                    else if (fields[0].Trim().ToLower() == "a")
                     {
-                        alpha = Convert.ToDouble(fields[fields.Count - 1]);
+                        alpha = Convert.ToDouble(fields[1].Trim());
                     }
-                    else if (fields[0].ToLower() == "b")
+                    else if (fields[0].Trim().ToLower() == "b")
                     {
-                        beta = Convert.ToDouble(fields[fields.Count - 1]);
+                        beta = Convert.ToDouble(fields[1].Trim());
                     }
-                    else if (fields[0].ToLower() == "m")
+                    else if (fields[0].Trim().ToLower() == "m")
                     {
-                        m = Convert.ToDouble(fields[fields.Count - 1]);
+                        m = Convert.ToDouble(fields[1].Trim());
+                    } 
+                    else if (fields[0].Trim().ToLower() == "il recovery rate")
+                    {
+                        ilRecoveryRate = Convert.ToDouble(fields[1].Trim()) / 3600;
                     }
                     else if (fields[0] == "!")
                     {

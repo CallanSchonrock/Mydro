@@ -133,7 +133,7 @@ namespace Run_Handler
             GlobalVariables.CL = FileLocations.CL;
             GlobalVariables.X = FileLocations.X;
             GlobalVariables.NonLin = FileLocations.N;
-
+            GlobalVariables.ilRecoveryRate = FileLocations.ilRecoveryRate;
             // id, area, reachL, reachF, channelSlope, catchslope, fracforested, fracUrban, mannings 
 
             List<Subcatchment> listOfSubbys = new List<Subcatchment>();
@@ -159,6 +159,8 @@ namespace Run_Handler
                     if (inputData.vecInfo[id].sq.Count > 0)
                     {
                         subcatchment.storages = inputData.vecInfo[id].sq;
+                        subcatchment.Evap = inputData.vecInfo[id].EVAP;
+                        if (inputData.vecInfo[id].storageArea )
                     }
 
                     foreach (string upstreamId in inputData.vecInfo[id].UpstreamSubcatchments)

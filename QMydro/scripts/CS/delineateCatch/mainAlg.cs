@@ -95,7 +95,7 @@ namespace mainAlg
             }
         }
 
-        public static (int[,], int[,], int[,], List<float>, List<float>) processingAlg(float[,] elev, float noData_val, List<List<(int, int)>> outletCells, float dx, float dy, float targetCatchSize)
+        public static (int[,], int[,], int[,], List<float>, List<float>) processingAlg(float[,] elev, float noData_val, List<List<(int, int)>> outletCells, float dx, float dy, float targetCatchSize, string model)
         {
             int numRows = elev.GetLength(0);
             int numCols = elev.GetLength(1);
@@ -467,15 +467,31 @@ namespace mainAlg
                             {
                                 if (accumulation[i, j] > mostAccumulation.Item1 && accumulation[i, j] < accumulation[x, y])
                                 {
-                                    if (subcatchments[i, j] == subcatchments[x, y] && accumulation[i,j] > catchMaxAccs[subcatchments[x,y] - 1] * 0.125)
+                                    if (model == "Mydro")
                                     {
-                                        mostAccumulation = (accumulation[i, j], (i, j));
-                                        keepIterating = true;
+                                        if (subcatchments[i, j] == subcatchments[x, y] && accumulation[i, j] > catchMaxAccs[subcatchments[x, y] - 1] * 0.125)
+                                        {
+                                            mostAccumulation = (accumulation[i, j], (i, j));
+                                            keepIterating = true;
+                                        }
+                                        else
+                                        {
+                                            mostAccumulation = (accumulation[i, j], (i, j));
+                                            keepIterating = false;
+                                        }
                                     }
-                                    else
+                                    else if (model == "URBS")
                                     {
-                                        mostAccumulation = (accumulation[i, j], (i, j));
-                                        keepIterating = false;
+                                        if (subcatchments[i, j] == subcatchments[x, y])
+                                        {
+                                            mostAccumulation = (accumulation[i, j], (i, j));
+                                            keepIterating = true;
+                                        }
+                                        else
+                                        {
+                                            mostAccumulation = (accumulation[i, j], (i, j));
+                                            keepIterating = false;
+                                        }
                                     }
                                 }
                             }
@@ -562,7 +578,6 @@ namespace mainAlg
             List<float> upstreamAreas = new List<float>();
             for (int i = 0; i < channelLengths.Count; i++)
             {
-                
                 upstreamAreas.Add((float)Math.Round(catchMaxAccs[i] * dx * dy / 1000000f, 5));
                 timeOfConcentrations.Add((float)Math.Round(58 * (channelCatchLengths[i] / 1000f) / ((float)Math.Pow(catchMaxAccs[i] * dx * dy / 1000000f, 0.1f) * (float)Math.Pow(channelCatchSlopes[i] * 1000f, 0.2f)), 5));
             }
@@ -583,6 +598,7 @@ namespace mainAlg
 
                 bool upstreamCatch = true;
                 int outlets = 0;
+                int indentCount = 0;
                 while (upstreamCatch)
                 {
                     List<Subcatchment> queue = new List<Subcatchment>();
@@ -602,9 +618,20 @@ namespace mainAlg
                         // if no. upstream > 0, insert subcatchment at 0, and continue else ADD RAIN or RAIN, then ROUTE THRU deleting DS US catchment
 
                         if (queue[0].upstreamCatchments.Count > 0) { queue.Add(queue[0].upstreamCatchments[0]); queue.RemoveAt(0); continue; }
+                        string indentation = "";
+                        for (int i = 0; i < indentCount; i++)
+                        {
+                            indentation += "\t";
+                        }
                         queue[0].rooted = true;
-                        if (queue[0].numUS == 0) { writer.WriteLine($"RAIN #{queue[0].id}"); }
-                        else { writer.WriteLine($"ADD RAIN #{queue[0].id}"); }
+                        string extension = "";
+                        if (model == "URBS")
+                        {
+                            extension = $" L = {Math.Round(channelLengths[queue[0].id - 1] / 2000, 5)} Sc = {Math.Round(channelSlopes[queue[0].id - 1], 5)} ";
+                        }
+
+                        if (queue[0].numUS == 0) { writer.WriteLine($"{indentation}RAIN #{queue[0].id}" + extension); }
+                        else { writer.WriteLine($"{indentation}ADD RAIN #{queue[0].id}" + extension); }
 
                         if (queue[0].dsCatchment != -1)
                         {
@@ -627,15 +654,26 @@ namespace mainAlg
                         {
                             if (queue[0].upstreamCatchments.Count > 0)
                             {
-                                writer.WriteLine($"STORE.");
+                                writer.WriteLine($"{indentation}STORE.");
+                                indentCount++;
                             }
                             else
                             {
                                 for (int usSubCats = 1; usSubCats < queue[0].numUS; usSubCats++)
                                 {
-                                    writer.WriteLine("GET.");
+                                    indentCount--;
+                                    indentation = "";
+                                    for (int i = 0; i < indentCount; i++)
+                                    {
+                                        indentation += "\t";
+                                    }
+                                    writer.WriteLine($"{indentation}GET.");
                                 }
-                                writer.WriteLine($"ROUTE THRU #{queue[0].id}");
+                                if (model == "URBS")
+                                {
+                                    extension = $" L = {Math.Round(channelLengths[queue[0].id - 1] / 2000,5)} Sc = {Math.Round(channelSlopes[queue[0].id - 1],5)} ";
+                                }
+                                writer.WriteLine($"{indentation}ROUTE THRU #{queue[0].id}" + extension);
                             }
                         }
                     }
@@ -644,7 +682,7 @@ namespace mainAlg
                     {
                         if (subcatchment.rooted == false)
                         {
-                            writer.WriteLine("STORE.");
+                            writer.WriteLine($"STORE. ! Final Outlet");
                             outlets += 1;
                             upstreamCatch = true;
                             break;
@@ -679,7 +717,7 @@ namespace mainAlg
                 float distance = 0;
                 float minElev = 99999;
                 float sumElevDist = 0;
-                if (catchmentSlopes[slopeCatch].Count >= 50)
+                if (catchmentSlopes[slopeCatch].Count >= 100)
                 {
                     continue;
                 }
@@ -693,19 +731,37 @@ namespace mainAlg
 
                     int nextCellX = currentCellX - cellDrainageDirection.Item1;
                     int nextCellY = currentCellY - cellDrainageDirection.Item2;
-
-                    if (channel[nextCellX, nextCellY] == default || accumulation[nextCellX, nextCellY] < catchMaxAccs[slopeCatch - 1] * 0.125)
+                    if (model == "Mydro")
                     {
-                        float cellDistance = (float)Math.Sqrt(Math.Pow((currentCellX - nextCellX) * dx, 2) + Math.Pow((currentCellY - nextCellY) * dy, 2));
-                        distance += cellDistance;
-                        minElev = Math.Min(minElev, elev[nextCellX, nextCellY]);
-                        sumElevDist += cellDistance * elev[nextCellX, nextCellY];
-                        currentCellX = nextCellX;
-                        currentCellY = nextCellY;
+                        if (channel[nextCellX, nextCellY] == default || accumulation[nextCellX, nextCellY] < catchMaxAccs[slopeCatch - 1] * 0.125)
+                        {
+                            float cellDistance = (float)Math.Sqrt(Math.Pow((currentCellX - nextCellX) * dx, 2) + Math.Pow((currentCellY - nextCellY) * dy, 2));
+                            distance += cellDistance;
+                            minElev = Math.Min(minElev, elev[nextCellX, nextCellY]);
+                            sumElevDist += cellDistance * elev[nextCellX, nextCellY];
+                            currentCellX = nextCellX;
+                            currentCellY = nextCellY;
+                        }
+                        else
+                        {
+                            break;
+                        }
                     }
-                    else
+                    if (model == "URBS")
                     {
-                        break;
+                        if (subcatchments[nextCellX, nextCellY] != slopeCatch)
+                        {
+                            float cellDistance = (float)Math.Sqrt(Math.Pow((currentCellX - nextCellX) * dx, 2) + Math.Pow((currentCellY - nextCellY) * dy, 2));
+                            distance += cellDistance;
+                            minElev = Math.Min(minElev, elev[nextCellX, nextCellY]);
+                            sumElevDist += cellDistance * elev[nextCellX, nextCellY];
+                            currentCellX = nextCellX;
+                            currentCellY = nextCellY;
+                        }
+                        else
+                        {
+                            break;
+                        }
                     }
                 }
                 if (distance > 0)
@@ -716,18 +772,34 @@ namespace mainAlg
             
             using (StreamWriter writer = new StreamWriter("TempSubCats.csv"))
             {
-                writer.WriteLine("Index,Area,L,Sc,N,HL,HS,k,d,I,UL,UM,UH,UF");
-                for (int i = 1; i < catchmentID; i++)
+                if (model == "Mydro")
                 {
-                    List<(float, float)> weightedSlopes = catchmentSlopes[i];
-                    float weightedSum = weightedSlopes.Sum(item => item.Item1 * item.Item2);
-                    float totalLength = weightedSlopes.Sum(item => item.Item2);
-                    float hillLength = totalLength / weightedSlopes.Count;
-                    float weightedAverage = weightedSum / totalLength;
-                    writer.WriteLine($"{i},{Math.Round(catchAccs[i-1] * dx * dy / 1000000, 5)},{Math.Round(channelLengths[i - 1] / 1000, 5)}," +
-                        $"{Math.Round(Math.Max(channelSlopes[i - 1], 0.0005), 5)},0.03,{Math.Round(hillLength/1000, 5)}," +
-                        $"{Math.Round(weightedAverage, 5)},{Math.Round(catchHydraulicParameters[i - 1].Item1, 5)}," +
-                        $"{Math.Round(catchHydraulicParameters[i - 1].Item2, 5)},0.0,0.0,0.0,0.0,0.0");
+                    writer.WriteLine("Index,Area,L,Sc,N,HL,HS,k,d,I,UL,UM,UH,UF");
+                    for (int i = 1; i < catchmentID; i++)
+                    {
+                        List<(float, float)> weightedSlopes = catchmentSlopes[i];
+                        float weightedSum = weightedSlopes.Sum(item => item.Item1 * item.Item2);
+                        float totalLength = weightedSlopes.Sum(item => item.Item2);
+                        float hillLength = totalLength / weightedSlopes.Count;
+                        float weightedAverage = weightedSum / totalLength;
+                        writer.WriteLine($"{i},{Math.Round(catchAccs[i - 1] * dx * dy / 1000000, 5)},{Math.Round(channelLengths[i - 1] / 1000, 5)}," +
+                            $"{Math.Round(Math.Max(channelSlopes[i - 1], 0.0005), 5)},0.03,{Math.Round(hillLength / 1000, 5)}," +
+                            $"{Math.Round(weightedAverage, 5)},{Math.Round(catchHydraulicParameters[i - 1].Item1, 5)}," +
+                            $"{Math.Round(catchHydraulicParameters[i - 1].Item2, 5)},0.0,0.0,0.0,0.0,0.0");
+                    }
+                }
+                else if (model == "URBS")
+                {
+                    writer.WriteLine("Index,Area,UL,UM,UH,UF,CS,I");
+                    for (int i = 1; i < catchmentID; i++)
+                    {
+                        List<(float, float)> weightedSlopes = catchmentSlopes[i];
+                        float weightedSum = weightedSlopes.Sum(item => item.Item1 * item.Item2);
+                        float totalLength = weightedSlopes.Sum(item => item.Item2);
+                        float hillLength = totalLength / weightedSlopes.Count;
+                        float weightedAverage = weightedSum / totalLength;
+                        writer.WriteLine($"{i},{Math.Round(catchAccs[i - 1] * dx * dy / 1000000, 5)},0,0,0,0," + $"{Math.Round(weightedAverage, 5)},0.0");
+                    }
                 }
                 
             }

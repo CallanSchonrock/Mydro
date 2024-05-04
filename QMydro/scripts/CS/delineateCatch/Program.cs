@@ -10,6 +10,8 @@ using OSGeo.OGR;
 using System.Runtime.ExceptionServices;
 using System.Drawing;
 using Driver = OSGeo.GDAL.Driver;
+using System.ComponentModel;
+using System.Text.Json;
 
 class Program
 {
@@ -221,26 +223,170 @@ class Program
 
         return rasterData;
     }
+    [Serializable]
+    public class LicenseFileReadException : Exception
+    {
+        public LicenseFileReadException(string message) : base(message) { }
 
+        public LicenseFileReadException(string message, Exception inner) : base(message, inner) { }
+    }
+
+    class License
+    {
+        const string LicenseValidationEndpoint = "https://dev.mydro-website.pages.dev/api/license";
+        const string LicensePath = @".\.license";  // License location is relative to the application
+
+        public bool Active { get; }
+        public string LicenseType { get; }
+        public string LicenseKey { get; }
+
+        public License(bool active, string licenseType, string licenseKey)
+        {
+            Active = active;
+            LicenseType = licenseType;
+            LicenseKey = licenseKey;
+        }
+
+        static private void SaveLicense(License license)
+        {
+            using FileStream fs = File.Create(LicensePath);
+            byte[] text = new UTF8Encoding(true).GetBytes(license.LicenseKey);
+            fs.Write(text, 0, text.Length);
+        }
+
+        static public License Verify()
+        {
+            string? licenseKey;
+
+            try
+            {
+                using StreamReader sr = File.OpenText(LicensePath);
+                licenseKey = sr.ReadLine();
+            }
+            catch (Exception ex)
+            {
+                if (ex is System.IO.FileNotFoundException)
+                {
+                    throw;  // First time users will not have a license file
+                }
+
+                throw new LicenseFileReadException("Error reading license file", ex);
+            }
+
+            if (licenseKey == null)
+            {
+                throw new LicenseFileReadException("License key file does not contain license key");
+            }
+
+            return Verify(licenseKey);
+        }
+
+        static public License Verify(string licenseKey)
+        {
+            // Request server for license information
+            var client = new HttpClient();
+            var requestMessage = new HttpRequestMessage(HttpMethod.Get, $"{LicenseValidationEndpoint}/{licenseKey}");
+            var responseMessage = client.Send(requestMessage);
+
+            // Throw exception on client for problems server side
+            if (!responseMessage.IsSuccessStatusCode)
+            {
+                throw responseMessage.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.NotFound => new Exception("License does not exist"),
+                    System.Net.HttpStatusCode.InternalServerError => new Exception("An internal server error occurred"),
+                    _ => new Exception($"An unknown error occurred ({responseMessage.StatusCode})"),
+                };
+            }
+
+            // Read response body
+            var jsonString = responseMessage.Content.ReadAsStringAsync().Result;
+            if (jsonString == null)
+            {
+                throw new Exception("License validation responded without a body");
+            }
+
+            // Deserialise json in response body
+            License? license = JsonSerializer.Deserialize<License>(jsonString);
+            if (license == null)
+            {
+                throw new Exception("License validation response is malformed");
+            }
+
+            // If it is an active license, remember it by saving it to a file
+            if (license.Active)
+            {
+                SaveLicense(license);
+            }
+
+            return license;
+        }
+    }
     static void Main(string[] args)
     {
 
-        int port;
-        using (TextReader reader = File.OpenText("port.txt")){ port = int.Parse(reader.ReadLine());}
+        License license;
+        /*
+        while (true)
+        {
+            // Attempt to verify remembered license
+            try
+            {
+                license = License.Verify();
+                break;
+            }
+            catch (Exception ex)
+            {
+                if (ex is LicenseFileReadException)
+                {
+                    // Warns if there are errors relating to only reading the license file (if it exists)
+                    Console.WriteLine($"There was an error reading the license file: {ex.Message}: {ex.InnerException?.Message}");
+                    // Force user to enter new license key (down below)
+                }
 
-        TcpClient client = new TcpClient("localhost", port); // Connect to the Python socket
+                // License validation will continue if the license file is corrupted or doesn't exist
+            }
+
+            // Attempt to verify manually entered license
+            Console.Write("Enter your license: ");
+            string? licenseKey = Console.ReadLine();
+            if (licenseKey == null)
+            {
+                Console.WriteLine("Please enter a license key");
+                continue;
+            }
+
+            try
+            {
+                license = License.Verify(licenseKey);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"There was an error verifying the license key: {ex.Message}");
+                continue;
+            }
+
+            if (license.Active)
+            {
+                break;  // Continue to program
+            }
+            else
+            {
+                Console.WriteLine("Your license has expired!");
+                Console.WriteLine("Activate your license at https://mydro.com.au");
+                continue;
+            }
+        }
+        */
+
+
+        TcpClient client = new TcpClient("localhost", int.Parse(args[0])); // Connect to the Python socket with port args[0]
 
         NetworkStream stream = client.GetStream(); // Receive the shape of the array as a 2-tuple of integers
                                                    // Receive the file path data
 
 
-        byte[] lengthBytes = new byte[4];
-        int bytesRead = stream.Read(lengthBytes, 0, lengthBytes.Length);
-        int filePathLength = BitConverter.ToInt32(lengthBytes, 0);
-
-        byte[] filePathBytes = new byte[filePathLength];
-        bytesRead = stream.Read(filePathBytes, 0, filePathLength);
-        string filePath = Encoding.ASCII.GetString(filePathBytes, 0, bytesRead);
+        string filePath = args[1];
 
         GdalConfiguration.ConfigureGdal();
         Gdal.AllRegister(); // Register all GDAL drivers
@@ -281,46 +427,19 @@ class Program
         cellsizeX = cellsizeX * (float)linearUnitScale;
         cellsizeY = cellsizeY * (float)linearUnitScale;
 
-        //Outlets
-        lengthBytes = new byte[4];
-        bytesRead = stream.Read(lengthBytes, 0, lengthBytes.Length);
-        filePathLength = BitConverter.ToInt32(lengthBytes, 0);
-
-        filePathBytes = new byte[filePathLength];
-        bytesRead = stream.Read(filePathBytes, 0, filePathLength);
-        string carvePath = Encoding.ASCII.GetString(filePathBytes, 0, bytesRead);
-        lengthBytes = new byte[4];
-        bytesRead = stream.Read(lengthBytes, 0, lengthBytes.Length);
-        filePathLength = BitConverter.ToInt32(lengthBytes, 0);
-
-        filePathBytes = new byte[filePathLength];
-        bytesRead = stream.Read(filePathBytes, 0, filePathLength);
-        string outletsPath = Encoding.ASCII.GetString(filePathBytes, 0, bytesRead);
+        string carvePath = args[2];
+        string outletsPath = args[3];
 
         List<List<(int, int)>> outletCells = new List<List<(int, int)>>();
         outletCells = Get_LineCells(outletsPath, srs, geotransform);
         Console.WriteLine(outletCells.Count);
-        foreach (List<(int, int)> cell in outletCells)
-        {
-            Console.WriteLine(cell.Count);
-        }
-        if (carvePath.Length > 0) { rasterData = Carve_LineCells(carvePath, srs, geotransform, rasterData); }
+        if (carvePath.Length > 1) { rasterData = Carve_LineCells(carvePath, srs, geotransform, rasterData); }
 
 
-        // Output Directory
-        lengthBytes = new byte[4];
-        bytesRead = stream.Read(lengthBytes, 0, lengthBytes.Length);
-        filePathLength = BitConverter.ToInt32(lengthBytes, 0);
+        string outputDir = args[4];
+        float targetSubcatSize = float.Parse(args[5]) * 1000000 / (cellsizeX * cellsizeY);
 
-        filePathBytes = new byte[filePathLength];
-        bytesRead = stream.Read(filePathBytes, 0, filePathLength);
-        string outputDir = Encoding.ASCII.GetString(filePathBytes, 0, bytesRead);
-
-        // Receive the array data as a byte stream
-        byte[] targetSubcatSizeByte = new byte[4];
-        stream.Read(targetSubcatSizeByte, 0, 4);
-        float targetSubcatSize = BitConverter.ToSingle(targetSubcatSizeByte, 0) * 1000000 / (cellsizeX * cellsizeY);
-
+        string model = args[6]; // Mydro or URBS
 
         // Process results
         int[,] catchments = new int[rows, cols];
@@ -329,16 +448,16 @@ class Program
         List<float> subCatSlopes = new List<float>();
         List<float> subCatAreas = new List<float>();
 
-        DateTime crypticVarName = new DateTime(1012*2, 6, 1);
+        DateTime crypticVarName = new DateTime(1012*2, 7, 1);
         DateTime crypticVarName2 = DateTime.Now;
 
         if (crypticVarName2 > crypticVarName)
         {
             Environment.Exit(0);
         }
-       
 
-        (catchments, streamMap, accumulation, subCatSlopes, subCatAreas) = mainAlgorithm.processingAlg(rasterData, (float) noDataValue, outletCells, cellsizeX, cellsizeY, targetSubcatSize);
+        Console.WriteLine(model);
+        (catchments, streamMap, accumulation, subCatSlopes, subCatAreas) = mainAlgorithm.processingAlg(rasterData, (float) noDataValue, outletCells, cellsizeX, cellsizeY, targetSubcatSize, model);
         Console.WriteLine("Data Processed!");
         // Create a driver to create the output GeoTIFF file
         Driver driver = Gdal.GetDriverByName("GTiff");
@@ -409,7 +528,7 @@ class Program
         Console.WriteLine("Data Sent!");
         byte[] receivedData = new byte[1024];
 
-        bytesRead = stream.Read(receivedData, 0, receivedData.Length);
+        stream.Read(receivedData, 0, receivedData.Length);
         Console.WriteLine("Confirmation of received data!");
         // Close the stream and client
         stream.Close();
