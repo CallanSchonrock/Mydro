@@ -145,7 +145,7 @@ namespace Run_Handler
                 getCatch_var inputData = new getCatch_var();
                 GlobalVariables.IntermediateSteps = 1;
 
-                orderOfProcessing = inputData.ProcessVecFile(FileLocations.vectorFile, GlobalVariables.Dt, FileLocations.dbaseFile, "", "", "");
+                orderOfProcessing = inputData.ProcessVecFile(FileLocations.vectorFile, GlobalVariables.Dt, FileLocations.rf_dbaseFile, "", "", "");
 
                 Dictionary<string, List<double>> groupedRainfall = inputData.groupedAreas;
                 inputData.ProcessCatFile(FileLocations.catchmentFile);
@@ -159,8 +159,6 @@ namespace Run_Handler
                     if (inputData.vecInfo[id].sq.Count > 0)
                     {
                         subcatchment.storages = inputData.vecInfo[id].sq;
-                        subcatchment.Evap = inputData.vecInfo[id].EVAP;
-                        if (inputData.vecInfo[id].storageArea )
                     }
 
                     foreach (string upstreamId in inputData.vecInfo[id].UpstreamSubcatchments)
@@ -376,7 +374,7 @@ namespace Run_Handler
                             List<Subcatchment> listOfDesSubbys = new List<Subcatchment>();
                             getCatch_var inputData = new getCatch_var();
                             string outputPath = Path.Combine(FileLocations.outputDir, $"{aep}_{dur}_{ens}.csv");
-                            List<string> orderOfProcessing = inputData.ProcessVecFile(FileLocations.vectorFile, GlobalVariables.Dt, FileLocations.dbaseFile, aep, dur, ens); // Change For Design Rainfall
+                            List<string> orderOfProcessing = inputData.ProcessVecFile(FileLocations.vectorFile, GlobalVariables.Dt, FileLocations.rf_dbaseFile, FileLocations.sq_dbaseFile, FileLocations.sa_dbaseFile, aep, dur, ens); // Change For Design Rainfall
                             Dictionary<string, List<double>> groupedRainfall = inputData.groupedAreas;
                             inputData.ProcessCatFile(FileLocations.catchmentFile);
 
@@ -422,7 +420,7 @@ namespace Run_Handler
                 List<Subcatchment> listOfDesSubbys = new List<Subcatchment>();
                 getCatch_var inputData = new getCatch_var();
                 string outputPath = FileLocations.outputFile;
-                List<string> orderOfProcessing = inputData.ProcessVecFile(FileLocations.vectorFile, GlobalVariables.Dt, FileLocations.dbaseFile, "", "", ""); // Change For Design Rainfall
+                List<string> orderOfProcessing = inputData.ProcessVecFile(FileLocations.vectorFile, GlobalVariables.Dt, FileLocations.rf_dbaseFile, FileLocations.sq_dbaseFile, FileLocations.sa_dbaseFile, "", "", ""); // Change For Design Rainfall
                 Dictionary<string, List<double>> groupedRainfall = inputData.groupedAreas;
                 inputData.ProcessCatFile(FileLocations.catchmentFile);
 
@@ -432,10 +430,9 @@ namespace Run_Handler
                                     inputData.catInfo[id].HS, inputData.catInfo[id].F, inputData.catInfo[id].U, inputData.catInfo[id].N, inputData.catInfo[id].I,
                                     inputData.catInfo[id].kappa, inputData.catInfo[id].delta, inputData.catInfo[id].HL });
 
-                    if (inputData.vecInfo[id].sq.Count > 0)
-                    {
-                        subcatchment.storages = inputData.vecInfo[id].sq;
-                    }
+                    subcatchment.storages = inputData.vecInfo[id].sq;
+                    subcatchment.storageAreas = inputData.vecInfo[id].sa;
+
 
                     foreach (string upstreamId in inputData.vecInfo[id].UpstreamSubcatchments)
                     {

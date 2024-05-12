@@ -27,7 +27,8 @@ bin/
 obj/
 TestResults/
 _ss/
-_Contractual
+_Contractual/
+Examples/
 ###################
 # Web publish log #
 ###################

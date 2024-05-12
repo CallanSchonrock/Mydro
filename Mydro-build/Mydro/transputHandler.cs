@@ -2,17 +2,17 @@
 using System.Text;
 using Microsoft.VisualBasic.FileIO;
 using System.ComponentModel;
+using System.Reflection.Metadata;
+using System.Xml;
 
 namespace Transput_Handler
 {
     public class VecSubby
     {
-        public string Id;
+        public string? Id;
         public List<string> UpstreamSubcatchments = new List<string>();
         public List<(List<(double, double)>, double)> sq = new List<(List<(double, double)>, double)>();
-        public List<List<(double, double)>> storageArea = new List<List<(double, double)>>();
-        public double? V0;
-        public double? EVAP;
+        public List<(List<(double, double)>, double)> sa = new List<(List<(double, double)>, double)>();
     }
 
     public class CatSubby
@@ -25,7 +25,7 @@ namespace Transput_Handler
          * U Fraction Urban
          * F Fraction Forested
         */
-        public string Id;
+        public string? Id;
         public double L, Area, Sc, N, HL, HS, I, U, F, kappa = 0, delta = 0;
     }
 
@@ -36,9 +36,9 @@ namespace Transput_Handler
         public Dictionary<string, List<double>> groupedAreas = new Dictionary<string, List<double>>();
         public bool lowerAlpha = false;
 
-        string lastLocation;
+        string? lastLocation;
 
-        public List<string> ProcessVecFile(string vec_filePath, double Dt, string dbaseFile, string aep = "", string dur = "", string ens = "")
+        public List<string> ProcessVecFile(string vec_filePath, double Dt, string rf_dbaseFile, string sq_dbaseFile = "", string sa_dbaseFile = "", string aep = "", string dur = "", string ens = "")
         {
             List<string> orderOfProcessing = new List<string>();
             try
@@ -125,56 +125,32 @@ namespace Transput_Handler
                                 subsToRoute.RemoveAt(subsToRoute.Count - 1); // Remove the last list
                                 subsToRoute.Add(new List<string>());
                             }
-                            else if (delim_row[0] == "DAM")
-                            {
-                                string lastInfo = "";
-                                for (int i = 1; i < delim_row.Length; i++)
-                                {
-                                    if (delim_row[i] != "=")
-                                    {
-                                        if (lastInfo == "")
-                                        {
-                                            lastInfo = delim_row[i];
-                                        }
-                                        else if (lastInfo.ToLower() == "file")
-                                        {
-                                            vecInfo[lastCatch].sq.Add((getStorageDischargeFile(delim_row[i]), 0)); // want to send the text after the = sign;
-                                            lastInfo = "";
-                                        }
-                                        else if (lastInfo.ToLower() == "number")
-                                        {
-                                            vecInfo[lastCatch].sq.Add((new List<(double, double)>(), 0));
-                                            storageLines = Convert.ToInt32(delim_row[i]);
-                                            lastInfo = "";
-                                        }else if (lastInfo.ToLower() == "v0")
-                                        {
-                                            vecInfo[lastCatch].V0 = Convert.ToDouble(delim_row[i]);
-                                            lastInfo = "";
-                                        }
-                                        else if (lastInfo.ToLower() == "evap")
-                                        {
-                                            vecInfo[lastCatch].EVAP = Convert.ToDouble(delim_row[i]) / 24 / 3600; // Cumecs or mm/day
-                                            lastInfo = "";
-                                        }
-                                        else if (lastInfo.ToLower() == "storagearea")
-                                        {
-                                            vecInfo[lastCatch].storageArea.Add((getStorageDischargeFile(delim_row[i]))); // want to send the text after the = sign;
-                                            lastInfo = "";
-                                            // STILL TO HANDLE STORAGE AREA FILE
-                                        }
-                                        lastInfo = delim_row[i];
-                                    }
-                                }
-                            }
+                            
+                            
                         }catch (Exception ex)
                         {
                             Console.WriteLine(ex.Message);
                             Console.WriteLine($"Error on line {countLines} of Routing file {vec_filePath}");
                         }
                     }
+                    if (sq_dbaseFile != "")
+                    {
+                        Dictionary<string, (List<double>, List<double>, double, double)> sqs = dbaseHandler(sq_dbaseFile);
+                        foreach (var pair in sqs)
+                        {
+                            vecInfo[pair.Key].sq.Add((pair.Value.Item1.Zip(pair.Value.Item2, (x, y) => (x, y)).ToList(), pair.Value.Item3));
+                        }
+                    }
+                    if (sa_dbaseFile != "")
+                    {
+                        Dictionary<string, (List<double>, List<double>, double, double)> sas = dbaseHandler(sa_dbaseFile);
+                        foreach (var pair in sas)
+                        {
+                            vecInfo[pair.Key].sa.Add((pair.Value.Item1.Zip(pair.Value.Item2, (x, y) => (x, y)).ToList(), pair.Value.Item3));
+                        }
+                    }
 
-
-                    using (StreamReader dbaseReader = new StreamReader(dbaseFile, Encoding.UTF8))
+                    using (StreamReader dbaseReader = new StreamReader(rf_dbaseFile, Encoding.UTF8))
                     {
                         Dictionary<string, int> colIndex = new Dictionary<string, int>();
                         bool firstRow = true;
@@ -210,7 +186,7 @@ namespace Transput_Handler
                                     addColVal = Convert.ToDouble(delim_row[colIndex["Add Col 2"]]);
                                 }
 
-                                string filePath = Path.Combine(Path.GetDirectoryName(dbaseFile), delim_row[colIndex["Source"]].Replace("\\", "\\\\").Replace("~AEP~", aep).Replace("~DUR~", dur).Replace("~TP~", ens));
+                                string filePath = Path.Combine(Path.GetDirectoryName(rf_dbaseFile), delim_row[colIndex["Source"]].Replace("\\", "\\\\").Replace("~AEP~", aep).Replace("~DUR~", dur).Replace("~TP~", ens));
 
                                 List<double> groupedRainfall = getDesignRainfall(filePath, Dt, timeCol, valCol, addColTime, multColVal, addColVal); // Catchments with temporal pattern
 
@@ -245,6 +221,119 @@ namespace Transput_Handler
             }
 
             return orderOfProcessing;
+        }
+        public Dictionary<string, (List<double>, List<double>, double, double)> dbaseHandler(string filePath)
+        {
+            /*
+            Returns:    Source: Column1, Column2, Column3, Column4                        
+            */
+            Dictionary<string, (List<double>, List<double>, double, double)> dbaseData = new Dictionary<string, (List<double>, List<double>, double, double)>();
+            string line;
+            using (StreamReader dbaseReader = new StreamReader(filePath))
+            {
+                bool header = true;
+                while ((line = dbaseReader.ReadLine()) != null)
+                {
+                    
+                    if (header) { header = false;  continue; }
+                    int index = line.IndexOf('!');
+                    if (index != -1)
+                    {
+                        line = line.Substring(0, index);
+                    }
+                    if (line.Length < 1) { continue; }
+                    string[] delim_row = line.Split(new char[] { ',', '\t' });
+                    string subcat = delim_row[0];
+                    string source = delim_row[1];
+                    List<double> col1 = new List<double>(), col2 = new List<double>();
+                    double addCol1 = 0, multCol2 = 1, addCol2 = 0 ;
+                    if (double.TryParse(delim_row[4], out _))
+                    {
+                        addCol1 = double.Parse(delim_row[4]);
+                    }
+                    if (double.TryParse(delim_row[5], out _))
+                    {
+                        multCol2 = double.Parse(delim_row[5]);
+                    }
+                    if (double.TryParse(delim_row[6], out _))
+                    {
+                        addCol2 = double.Parse(delim_row[6]);
+                    }
+                    double col3 = 0, col4 = 0;
+                    if (source.Length > 0)
+                    {
+                        using (StreamReader csvReader = new StreamReader(source))
+                        {
+                            string csv_line;
+                            bool csvHeader = true;
+                            int indexCol = -1;
+                            int valCol = -1;
+                            while ((csv_line = csvReader.ReadLine()) != null)
+                            {
+                                string[] values = csv_line.Split(new char[] { ',', '\t' });
+                                if (csvHeader)
+                                {
+                                    for (int col = 0; col < values.Length; col++)
+                                    {
+                                        if (values[col] == delim_row[2]) { indexCol = col; }
+                                        if (values[col] == delim_row[3]) { valCol = col; }
+                                    }
+                                    if (indexCol == -1 || valCol == -1)
+                                    {
+                                        Console.WriteLine($"ERROR: Could not find column/s {col1[0]}, {col2[0]} in csv {source}");
+                                        Environment.Exit(0);
+                                    }
+                                    csvHeader = false;
+                                    continue;
+                                }
+                                if (values[indexCol].Length > 0 && values[valCol].Length > 0)
+                                {
+                                    try
+                                    {
+                                        col1.Add(double.Parse(values[indexCol]) + addCol1);
+                                        col2.Add(double.Parse(values[valCol]) * multCol2 + addCol2);
+                                    }
+                                    catch
+                                    {
+                                        Console.WriteLine($"ERROR: Cannot Interpret Value as float in column/s {col1[0]}, {col2[0]} in csv {source}");
+                                        Environment.Exit(0);
+                                    }
+                                }
+                                else
+                                {
+                                    continue;
+                                }
+                            }
+
+                        }
+                    }
+                    else
+                    {
+                        try
+                        {
+                            col1.Add(float.Parse(delim_row[2]));
+                        }
+                        catch { }
+                        try
+                        {
+                            col2.Add(float.Parse(delim_row[3]));
+                        }
+                        catch { }
+                    }
+                    try
+                    {
+                        col3 = float.Parse(delim_row[7]);
+                    }
+                    catch { }
+                    try
+                    {
+                        col4 = float.Parse(delim_row[8]);
+                    }
+                    catch { }
+                    dbaseData.Add(subcat, (col1, col2, col3, col4));
+                }
+            }
+            return dbaseData;
         }
 
         public List<double> getDesignRainfall(string filePath, double Dt, string timeCol, string valCol, double addColTime, double multColVal, double addColVal)
@@ -473,7 +562,7 @@ public class fileLocations
     public List<string> aeps;
     public List<string> durations;
     public List<string> ensembles;
-    public string dbaseFile = "";
+    public string rf_dbaseFile = "", sq_dbaseFile = "", sa_dbaseFile = "";
     public string recordedFlows;
     public string run;
     public string fitsFileName = "BestFits.csv";
@@ -494,15 +583,15 @@ public class fileLocations
         using (TextFieldParser parser = new TextFieldParser(paramFile))
         {
             // Set the delimiter for the CSV file
-            parser.Delimiters = new string[] { "=", ",", "!" };
-
+            parser.Delimiters = new string[] { "=", "," };
+            int rowCount = 0;
             // Read the fields while the end of the file is not reached
             while (!parser.EndOfData)
             {
-
+                rowCount++;
                 List<string> fields = parser.ReadFields().ToList();
 
-                if (fields.Count > 0)
+                if (fields.Count > 1)
                 {
                     if (fields[0].Trim().ToLower() == "cat")
                     {
@@ -544,9 +633,17 @@ public class fileLocations
                     {
                         X = Convert.ToDouble(fields[1].Trim());
                     }
-                    else if (fields[0].Trim().ToLower() == "dbase")
+                    else if (fields[0].Trim().ToLower() == "sq_dbase")
                     {
-                        dbaseFile = fields[1].Trim().Replace("\\", "\\\\");
+                        sq_dbaseFile = fields[1].Trim().Replace("\\", "\\\\");
+                    }
+                    else if (fields[0].Trim().ToLower() == "sa_dbase")
+                    {
+                        sa_dbaseFile = fields[1].Trim().Replace("\\", "\\\\");
+                    }
+                    else if (fields[0].Trim().ToLower() == "rf_dbase")
+                    {
+                        rf_dbaseFile = fields[1].Trim().Replace("\\", "\\\\");
                     }
                     else if (fields[0].ToLower() == "aep" || fields[0].ToLower() == "aeps" || fields[0].ToLower() == "ari" || fields[0].ToLower() == "aris")
                     {
@@ -558,7 +655,6 @@ public class fileLocations
                                 aeps.Add(col);
                             }
                         }
-
                     }
                     else if (fields[0].ToLower() == "dur" || fields[0].ToLower() == "durs" || fields[0].ToLower() == "duration" || fields[0].ToLower() == "durations")
                     {
@@ -602,13 +698,13 @@ public class fileLocations
                     {
                         ilRecoveryRate = Convert.ToDouble(fields[1].Trim()) / 3600;
                     }
-                    else if (fields[0] == "!")
+                    else if (fields[0][0] == '!')
                     {
                         continue;
                     }
                     else
                     {
-                        Console.Write($"Unrecognized Command in Parameter File: {fields[0]}");
+                        Console.Write($"Unrecognized Command in Parameter File on line: {rowCount}: {fields[0]}");
                         Environment.Exit(0);
                     }
                 }

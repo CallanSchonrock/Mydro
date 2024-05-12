@@ -603,7 +603,7 @@ namespace mainAlg
                 {
                     List<Subcatchment> queue = new List<Subcatchment>();
                     upstreamCatch = false;
-                    foreach (Subcatchment subcatchment in subcatchmentsInfo.Values)
+                    foreach (Subcatchment subcatchment in subcatchmentsInfo.Values.Reverse())
                     {
                         if (subcatchment.upstreamCatchments.Count == 0 && subcatchment.rooted == false)
                         {
@@ -617,7 +617,20 @@ namespace mainAlg
                     {
                         // if no. upstream > 0, insert subcatchment at 0, and continue else ADD RAIN or RAIN, then ROUTE THRU deleting DS US catchment
 
-                        if (queue[0].upstreamCatchments.Count > 0) { queue.Add(queue[0].upstreamCatchments[0]); queue.RemoveAt(0); continue; }
+                        if (queue[0].upstreamCatchments.Count > 0) 
+                        {
+                            int maxIndex = 0;
+                            int maxCount = -1;
+                            for (int i = 0; i < queue[0].upstreamCatchments.Count; i++)
+                            {
+                                if (queue[0].upstreamCatchments[i].upstreamCatchments.Count > maxCount)
+                                {
+                                    maxIndex = i;
+                                    maxCount = queue[0].upstreamCatchments[i].upstreamCatchments.Count;
+                                }
+                            }
+                            queue.Add(queue[0].upstreamCatchments[maxIndex]); queue.RemoveAt(0); continue; 
+                        }
                         string indentation = "";
                         for (int i = 0; i < indentCount; i++)
                         {
@@ -627,7 +640,7 @@ namespace mainAlg
                         string extension = "";
                         if (model == "URBS")
                         {
-                            extension = $" L = {Math.Round(channelLengths[queue[0].id - 1] / 2000, 5)} Sc = {Math.Round(channelSlopes[queue[0].id - 1], 5)} ";
+                            extension = $" L = {Math.Round(channelLengths[queue[0].id - 1] / 2000, 5)} Sc = {Math.Round(Math.Max(channelSlopes[queue[0].id - 1],0.0005), 5)} ";
                         }
 
                         if (queue[0].numUS == 0) { writer.WriteLine($"{indentation}RAIN #{queue[0].id}" + extension); }

@@ -11,7 +11,9 @@ CL=1.0
 ! cal file must be in format Time (h), id, id, id...
 
 ! cal=..\Recorded\targetFlows.csv
-dbase=bc_dbase_single.csv
+rf_dbase=rf_dbase_single.csv
+sq_dbase=sq_dbase.csv
+sa_dbase=sa_dbase.csv
 
 ! Optional Args
 

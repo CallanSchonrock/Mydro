@@ -96,7 +96,6 @@ STORE.
 GET.
 ROUTE THRU #1
 ADD RAIN #1
-DAM ROUTE File = 1.sq StorageArea = 1.sa Evap = 5.5 v0 = 30
 STORE. ! Final Outlet
 RAIN #32
 ROUTE THRU #2

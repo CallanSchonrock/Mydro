@@ -31,6 +31,7 @@ namespace Mydro
         public double catchIL; // Different to other subcatchments with different rainfall time series
         public double area, reachL, reachF, channelSlope, catchVelocity, fracForested, fracUrban, mannings, fracImpervious, kappa, delta, hillLength, linHydraulicArea, linHydraulicSlope;
         public List<(List<(double, double)>, double)> storages = new List<(List<(double, double)>, double)>();
+        public List<(List<(double, double)>, double)> storageAreas = new List<(List<(double, double)>, double)>();
         public List<rainfallExcess> subcatchmentExcessRainfall = new List<rainfallExcess>(); // List of rainfall on subcatchment within the Time-Area Diagram
 
         public Subcatchment(string inputID, double[] args)
@@ -238,16 +239,40 @@ namespace Mydro
             outflows = (fullFlow + emptiedFlow) / 2;
             double discharge = outflows * GlobalVariables.Dt;
             channelStorage -= discharge;
+            for (int i = 0; i < storageAreas.Count; i++) // Number of storages in subcatchment
+            {
+                if (storageAreas[i].Item1.Count == 0)
+                {
+                    storages[i] = (storages[i].Item1, Math.Max(storages[i].Item2 - (storageAreas[i].Item2 / 86400) * GlobalVariables.Dt, 0));
+                    continue;
+                }
+                double area = 0;
+                for (int j = 0; j < storageAreas[i].Item1.Count; j++) // Loop through storage Discharge Pairs
+                {
+                    if (storageAreas[i].Item1[j].Item1 <= storages[i].Item2)  // If Storage (ML) in Storage Discharge Pair <= Current Storage
+                    {
+                        if (storageAreas[i].Item1.Count - 1 < j + 1) // If Current Storage exceeds last storage discharge Pair
+                        {
+                            area = storageAreas[i].Item1[j].Item2;
+                        }
+                        else
+                        {
+                            double gradient = (storageAreas[i].Item1[j + 1].Item2 - storageAreas[i].Item1[j].Item2) / (storageAreas[i].Item1[j + 1].Item1 - storageAreas[i].Item1[j].Item1);
+                            area = storageAreas[i].Item1[j].Item2 + gradient * (storages[i].Item2 - storageAreas[i].Item1[j].Item1);
+                        }
+                        storages[i] = (storages[i].Item1, Math.Max(storages[i].Item2 - area * 1000000 * storageAreas[i].Item2 / 1000 / 86400 * GlobalVariables.Dt,0));
+                    }
+                }
+            }
 
             for (int i = 0; i < storages.Count; i++) // Number of storages in subcatchment
             {
-                var updatedStorages = (storages[i].Item1, storages[i].Item2 + discharge);
-                storages[i] = updatedStorages;
+                storages[i] = (storages[i].Item1, storages[i].Item2 + discharge);
                 for (int j = 0; j < storages[i].Item1.Count; j++) // Loop through storage Discharge Pairs
                 {
                     if (storages[i].Item1[j].Item1 <= storages[i].Item2)  // If Storage (ML) in Storage Discharge Pair <= Current Storage
                     {
-                        if (storages[i].Item1.Count - 1 >= j + 1) // If Current Storage exceeds last storage discharge Pair
+                        if (storages[i].Item1.Count - 1 < j + 1) // If Current Storage exceeds last storage discharge Pair
                         {
                             outflows = storages[i].Item1[j].Item2;
                         }
@@ -256,12 +281,12 @@ namespace Mydro
                             double gradient = (storages[i].Item1[j + 1].Item2 - storages[i].Item1[j].Item2) / (storages[i].Item1[j + 1].Item1 - storages[i].Item1[j].Item1);
                             outflows = storages[i].Item1[j].Item2 + gradient * (storages[i].Item2 - storages[i].Item1[j].Item1);
                         }
-                        discharge = outflows * GlobalVariables.Dt;
-                        updatedStorages = (storages[i].Item1, storages[i].Item2 - discharge);
-                        storages[i] = updatedStorages;
                     }
                 }
+                discharge = outflows * GlobalVariables.Dt;
+                storages[i] = (storages[i].Item1, Math.Max(storages[i].Item2 - discharge,0));
             }
+
 
         }
     }
@@ -357,9 +382,8 @@ namespace Mydro
                 content.AppendLine();
                 localContent.AppendLine();
             }
-            
 
-            for (int i = 0; i < groupedRainfall["1"].Count; i++)
+            for (int i = 0; i < groupedRainfall[groupedRainfall.Keys.ElementAt(0)].Count; i++)
             {
                 if (fileName != null) { 
                     content.Append($"{Math.Round(i * GlobalVariables.Dt / 3600 * GlobalVariables.IntermediateSteps, 2)}");
