@@ -12,6 +12,14 @@ using System.Drawing;
 using Driver = OSGeo.GDAL.Driver;
 using System.ComponentModel;
 using System.Text.Json;
+using System.Xml;
+
+/*
+QMydro Version 1.1
+
+Welcome to QMydro the spatial catchment analyzer generating hydrologic model input files for Mydro, URBS and RORB.
+Created By Callan Schonrock
+*/
 
 class Program
 {
@@ -161,7 +169,6 @@ class Program
             while ((feature = outletsLayer.GetNextFeature()) != null)
             {
                 Geometry geom = feature.GetGeometryRef();
-                List<(float, float, float)> vertex = new List<(float, float, float)>();
                 List<Geometry> geoms = new List<Geometry>();
                 if (geom.GetGeometryCount() > 0)
                 {
@@ -206,15 +213,29 @@ class Program
                         int secondCellX = (int)Math.Floor((secondVertex[0] - geoTransform[0]) / geoTransform[1]);  // Column
                         int secondCellY = (int)Math.Floor((secondVertex[1] - geoTransform[3]) / geoTransform[5]);  // Row
 
-                        float z0 = rasterData[firstCellX, firstCellY];
-                        float z1 = rasterData[secondCellX, secondCellY];
 
-                        cells.AddRange(BresenhamLine(firstCellX, firstCellY, secondCellX, secondCellY));
-                        float interval = (z1 - z0)/cells.Count;
-                        for (int j = 0; j < cells.Count; j++)
+                        try
                         {
-                            rasterData[cells[j].Item1, cells[j].Item2] = z0 + interval * j;
+                            float z0 = rasterData[firstCellY, firstCellX];
+                            float z1 = rasterData[secondCellY, secondCellX];
+
+
+                            cells.AddRange(BresenhamLine(firstCellX, firstCellY, secondCellX, secondCellY));
+                            float interval = (z1 - z0) / cells.Count;
+                            for (int j = 0; j < cells.Count; j++)
+                            {
+                                rasterData[cells[j].Item1, cells[j].Item2] = z0 + interval * j;
+                            }
                         }
+                        catch 
+                        {
+                            if (feature.GetFieldCount() > 0)
+                            {
+                                Console.WriteLine("WARNING: Carving Feature Error with first attribute value: " + feature.GetFieldAsString(0) + $" At Raster Coordinates: ({firstCellX},{firstCellY}) To ({secondCellX},{secondCellY})");
+                            }
+                            continue;
+                        }
+
                     }
                 }
             }
@@ -223,6 +244,7 @@ class Program
 
         return rasterData;
     }
+
     [Serializable]
     public class LicenseFileReadException : Exception
     {
@@ -233,18 +255,20 @@ class Program
 
     class License
     {
-        const string LicenseValidationEndpoint = "https://dev.mydro-website.pages.dev/api/license";
+        const string LicenseValidationEndpoint = "https://hydrorepo.com/api/license";
         const string LicensePath = @".\.license";  // License location is relative to the application
 
         public bool Active { get; }
         public string LicenseType { get; }
         public string LicenseKey { get; }
+        public string CompanyName { get; }
 
-        public License(bool active, string licenseType, string licenseKey)
+        public License(bool active, string licenseType, string licenseKey, string companyName)
         {
             Active = active;
             LicenseType = licenseType;
             LicenseKey = licenseKey;
+            CompanyName = companyName;
         }
 
         static private void SaveLicense(License license)
@@ -294,7 +318,7 @@ class Program
                 throw responseMessage.StatusCode switch
                 {
                     System.Net.HttpStatusCode.NotFound => new Exception("License does not exist"),
-                    System.Net.HttpStatusCode.InternalServerError => new Exception("An internal server error occurred"),
+                    System.Net.HttpStatusCode.InternalServerError => new Exception($"An internal server error occurred {responseMessage.Content}"),
                     _ => new Exception($"An unknown error occurred ({responseMessage.StatusCode})"),
                 };
             }
@@ -326,7 +350,7 @@ class Program
     {
 
         License license;
-        /*
+        
         while (true)
         {
             // Attempt to verify remembered license
@@ -368,25 +392,28 @@ class Program
 
             if (license.Active)
             {
+                Console.WriteLine($"Authorized Use Solely For: {license.CompanyName}");
                 break;  // Continue to program
             }
             else
             {
                 Console.WriteLine("Your license has expired!");
                 Console.WriteLine("Activate your license at https://mydro.com.au");
+                if (File.Exists(@".\.license"))
+                {
+                    File.Delete(@".\.license");
+                }
+                
                 continue;
             }
         }
-        */
+        
+        foreach (string arg in args)
+        {
+            Console.WriteLine(arg);
+        }
 
-
-        TcpClient client = new TcpClient("localhost", int.Parse(args[0])); // Connect to the Python socket with port args[0]
-
-        NetworkStream stream = client.GetStream(); // Receive the shape of the array as a 2-tuple of integers
-                                                   // Receive the file path data
-
-
-        string filePath = args[1];
+        string filePath = args[0];
 
         GdalConfiguration.ConfigureGdal();
         Gdal.AllRegister(); // Register all GDAL drivers
@@ -427,19 +454,19 @@ class Program
         cellsizeX = cellsizeX * (float)linearUnitScale;
         cellsizeY = cellsizeY * (float)linearUnitScale;
 
-        string carvePath = args[2];
-        string outletsPath = args[3];
+        string carvePath = args[1];
+        string outletsPath = args[2];
 
         List<List<(int, int)>> outletCells = new List<List<(int, int)>>();
         outletCells = Get_LineCells(outletsPath, srs, geotransform);
-        Console.WriteLine(outletCells.Count);
+        Console.WriteLine($"User Defined Outlet Cells: {outletCells.Count}");
         if (carvePath.Length > 1) { rasterData = Carve_LineCells(carvePath, srs, geotransform, rasterData); }
 
 
-        string outputDir = args[4];
-        float targetSubcatSize = float.Parse(args[5]) * 1000000 / (cellsizeX * cellsizeY);
+        string outputDir = args[3];
+        float targetSubcatSize = float.Parse(args[4]) * 1000000 / (cellsizeX * cellsizeY);
 
-        string model = args[6]; // Mydro or URBS
+        string model = args[5]; // Mydro or URBS
 
         // Process results
         int[,] catchments = new int[rows, cols];
@@ -447,14 +474,6 @@ class Program
         int[,] accumulation = new int[rows, cols];
         List<float> subCatSlopes = new List<float>();
         List<float> subCatAreas = new List<float>();
-
-        DateTime crypticVarName = new DateTime(1012*2, 7, 1);
-        DateTime crypticVarName2 = DateTime.Now;
-
-        if (crypticVarName2 > crypticVarName)
-        {
-            Environment.Exit(0);
-        }
 
         Console.WriteLine(model);
         (catchments, streamMap, accumulation, subCatSlopes, subCatAreas) = mainAlgorithm.processingAlg(rasterData, (float) noDataValue, outletCells, cellsizeX, cellsizeY, targetSubcatSize, model);
@@ -515,24 +534,20 @@ class Program
         accDataset.FlushCache();
         accDataset.Dispose();
 
-        stream.Write(BitConverter.GetBytes(subCatSlopes.Count()), 0, 4);
+        using (StreamWriter writer = new StreamWriter(Path.Combine(outputDir, "data.txt")))
+        {
+            writer.WriteLine("ToC:");
+            foreach (var slope in subCatSlopes)
+            {
+                writer.WriteLine(slope.ToString());
+            }
+            writer.WriteLine("US Area:");
+            foreach (var area in subCatAreas)
+            {
+                writer.WriteLine(area.ToString());
+            }
+        }
 
-        byte[] listBytes = new byte[subCatSlopes.Count() * 4];
-        Buffer.BlockCopy(subCatSlopes.ToArray(), 0, listBytes, 0, subCatSlopes.Count() * 4);
-        stream.Write(listBytes, 0, subCatSlopes.Count() * 4);
-
-        byte[] areasBytes = new byte[subCatAreas.Count() * 4];
-        Buffer.BlockCopy(subCatAreas.ToArray(), 0, areasBytes, 0, subCatAreas.Count() * 4);
-        stream.Write(areasBytes, 0, subCatAreas.Count() * 4);
-
-        Console.WriteLine("Data Sent!");
-        byte[] receivedData = new byte[1024];
-
-        stream.Read(receivedData, 0, receivedData.Length);
-        Console.WriteLine("Confirmation of received data!");
-        // Close the stream and client
-        stream.Close();
-        client.Close();
         Thread.Sleep(1000);
     }
 }

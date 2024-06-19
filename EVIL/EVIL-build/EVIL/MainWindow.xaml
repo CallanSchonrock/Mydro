@@ -1,0 +1,76 @@
+﻿<Window x:Class="EVIL.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:EVIL"
+        xmlns:oxy="http://oxyplot.org/wpf"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="3*"/>
+            <ColumnDefinition Width="2*"/>
+        </Grid.ColumnDefinitions>
+
+        <TabControl Grid.Column="0">
+            <TabItem Header="Distribution Plot">
+                <oxy:PlotView x:Name="plotView" Model="{Binding PlotModel}" />
+            </TabItem>
+            <TabItem Header="PDF">
+                <oxy:PlotView x:Name="pdfPlotView" Model="{Binding PlotPDF}" />
+            </TabItem>
+            <TabItem Header="Linear Regression">
+                <oxy:PlotView x:Name="linRegressionPlotView" Model="{Binding PlotLinRegression}" />
+            </TabItem>
+            <!-- Add more TabItems here for additional graphs -->
+        </TabControl>
+
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="9*"/>
+                <RowDefinition Height="1*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Define a container (Border or Grid) with specific dimensions and scrollable behavior -->
+            <Border Grid.Row="0" BorderBrush="Black" BorderThickness="1" VerticalAlignment="Top" Margin="5">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <DataGrid x:Name="dataGrid" AutoGenerateColumns="False"
+                          ItemsSource="{Binding Points}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Index/Year" Binding="{Binding Index}" Width="*"/>
+                            <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
+                            <DataGridTextColumn Header="Empirical Prob." Binding="{Binding EmpiricalProbability, StringFormat=P2}" IsReadOnly="True" Width="*">
+                                <DataGridTextColumn.CellStyle>
+                                    <Style TargetType="DataGridCell">
+                                        <Setter Property="Background" Value="Gray"/>
+                                    </Style>
+                                </DataGridTextColumn.CellStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="FFA Prob." Binding="{Binding FfaProbability, StringFormat=P2}" IsReadOnly="True" Width="*">
+                                <DataGridTextColumn.CellStyle>
+                                    <Style TargetType="DataGridCell">
+                                        <Setter Property="Background" Value="Gray"/>
+                                    </Style>
+                                </DataGridTextColumn.CellStyle>
+                            </DataGridTextColumn>
+                        </DataGrid.Columns>
+                        <!-- Context menu for paste -->
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Paste" Command="ApplicationCommands.Paste"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+
+                        <!-- Command bindings for paste -->
+                        <DataGrid.CommandBindings>
+                            <CommandBinding Command="ApplicationCommands.Paste" Executed="PasteCommandHandler"/>
+                        </DataGrid.CommandBindings>
+                    </DataGrid>
+                </ScrollViewer>
+            </Border>
+
+            <Button Content="Plot" Grid.Row="1" Height="30" Click="PlotButton_Click"/>
+        </Grid>
+    </Grid>
+</Window>

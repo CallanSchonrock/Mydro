@@ -131,6 +131,22 @@ namespace mainAlg
             stopwatch.Start();
             catchmentID = 1;
             Dictionary<int, Subcatchment> subcatchmentsInfo = new Dictionary<int, Subcatchment>();
+
+            foreach (List<(int, int)> userOutlet in outletCells)
+            {
+                int lastx = userOutlet[0].Item1;
+                int lasty = userOutlet[0].Item2;
+                foreach ((int x, int y) in userOutlet)
+                {
+                    catchments[x, y] = catchmentID;
+                    if (lastx != x && lasty != y)
+                    {
+                        catchments[lastx, y] = catchmentID;
+                        catchments[x, lasty] = catchmentID;
+                    }
+                }
+            }
+
             foreach (List<(int, int)> userOutlet in outletCells)
             {
                 int lastx = userOutlet[0].Item1;
@@ -762,7 +778,7 @@ namespace mainAlg
                     }
                     if (model == "URBS")
                     {
-                        if (subcatchments[nextCellX, nextCellY] != slopeCatch)
+                        if (subcatchments[nextCellX, nextCellY] == slopeCatch)
                         {
                             float cellDistance = (float)Math.Sqrt(Math.Pow((currentCellX - nextCellX) * dx, 2) + Math.Pow((currentCellY - nextCellY) * dy, 2));
                             distance += cellDistance;

@@ -6,14 +6,14 @@
 name=QMydro
 qgisMinimumVersion=3.0
 description=This plugin aids catchment/subcatchment delineation with shapefiles as subcatchment outlets
-version=0.1
+version=1.1
 author=Callan Schonrock
 email=callansch@gmail.com
 
 about=This plugin aids catchment and subcatchment delineation, for input into Hydrology Models
 
-tracker=http://bugs
-repository=http://repo
+tracker=https://github.com/CallanSchonrock/Mydro
+repository=https://github.com/CallanSchonrock/Mydro
 # End of mandatory metadata
 
 # Recommended items:
@@ -23,9 +23,9 @@ hasProcessingProvider=no
 # changelog=
 
 # Tags are comma separated with spaces allowed
-tags=python
+tags=python,catchment,hydrology
 
-homepage=http://homepage
+homepage=https://hydrorepo.com/
 category=Plugins
 icon=icon.png
 # experimental flag
